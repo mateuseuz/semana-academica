@@ -1,0 +1,13 @@
+{
+  "name": "semana-academica-api",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "servidor.js",
+  "scripts": {
+    "start": "node servidor.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7"
+  }
+}

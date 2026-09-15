@@ -1,0 +1,7 @@
+{
+  "name": "semana-academica",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node --test verificacoes/**/*.spec.js"
+  }
+}
