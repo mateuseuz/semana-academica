@@ -216,7 +216,7 @@ export function criarServidor(options = {}) {
     }
 
     const encontroId = req.params.id;
-    const { codigo } = req.body || {};
+    const { codigo, lidoEm } = req.body || {};
 
     db.get('SELECT * FROM encontros WHERE id = ?', [encontroId], (err, encontro) => {
       if (err || !encontro) {
@@ -228,8 +228,21 @@ export function criarServidor(options = {}) {
       const inicioJanela = new Date(inicioDate.getTime() - 15 * 60 * 1000);
       const fimJanela = new Date(inicioDate.getTime() + 30 * 60 * 1000);
 
-      if (agoraDate < inicioJanela || agoraDate > fimJanela) {
-        return res.status(422).json({ erro: 'FORA_DA_JANELA', mensagem: 'Fora da janela de registro' });
+      if (lidoEm) {
+        const fimEncontro = new Date(encontro.fim);
+        const limiteSincronizacao = new Date(fimEncontro.getTime() + 2 * 60 * 60 * 1000);
+        if (agoraDate > limiteSincronizacao) {
+          return res.status(422).json({ erro: 'SINCRONIZACAO_TARDIA', mensagem: 'Sincronização tardia' });
+        }
+
+        const lidoEmDate = new Date(lidoEm);
+        if (lidoEmDate < inicioJanela || lidoEmDate > fimJanela) {
+          return res.status(422).json({ erro: 'FORA_DA_JANELA', mensagem: 'Fora da janela de registro' });
+        }
+      } else {
+        if (agoraDate < inicioJanela || agoraDate > fimJanela) {
+          return res.status(422).json({ erro: 'FORA_DA_JANELA', mensagem: 'Fora da janela de registro' });
+        }
       }
 
       // Check inscription (R9)
@@ -238,8 +251,9 @@ export function criarServidor(options = {}) {
           return res.status(403).json({ erro: 'NAO_INSCRITO', mensagem: 'Participante não inscrito' });
         }
 
-        // Check code validity (R5)
-        const minutoAtualDate = new Date(agoraDate);
+        // Check code validity (R5, R6)
+        const refDate = lidoEm ? new Date(lidoEm) : agoraDate;
+        const minutoAtualDate = new Date(refDate);
         minutoAtualDate.setSeconds(0, 0);
         const minutoAtualStr = minutoAtualDate.toISOString();
         const minutoAnteriorDate = new Date(minutoAtualDate.getTime() - 60 * 1000);
@@ -266,12 +280,12 @@ export function criarServidor(options = {}) {
 
             const hex = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
             const presencaId = `pre_${hex}`;
-            const lidoEm = agoraDate.toISOString();
+            const lidoEmVal = lidoEm ? lidoEm : agoraDate.toISOString();
             const registradaEm = agoraDate.toISOString();
-            const origem = 'qr';
+            const origem = lidoEm ? 'qr_offline' : 'qr';
 
             db.run('INSERT INTO presencas (id, encontroId, participanteId, origem, lidoEm, registradaEm, justificativa) VALUES (?, ?, ?, ?, ?, ?, ?)', [
-              presencaId, encontroId, req.usuario.id, origem, lidoEm, registradaEm, null
+              presencaId, encontroId, req.usuario.id, origem, lidoEmVal, registradaEm, null
             ], (err) => {
               if (err) {
                 return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
@@ -281,7 +295,7 @@ export function criarServidor(options = {}) {
                 encontroId,
                 participanteId: req.usuario.id,
                 origem,
-                lidoEm,
+                lidoEm: lidoEmVal,
                 registradaEm,
                 justificativa: null
               });
