@@ -250,3 +250,115 @@ test('POST /encontros/:id/presencas recusa participante não inscrito com 403 NA
     await servidor.fechar();
   }
 });
+
+test('POST /encontros/:id/presencas com lidoEm dentro da janela e envio a tempo registra com sucesso (201) e origem qr_offline', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:50:00-03:00' })
+    });
+
+    const resCodigo = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/codigo`, {
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+    assert.equal(resCodigo.status, 200);
+    const { codigo } = await resCodigo.json();
+
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T22:30:00-03:00' })
+    });
+
+    const res = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'p-carla',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        codigo,
+        lidoEm: '2026-10-19T18:50:30-03:00'
+      })
+    });
+
+    assert.equal(res.status, 201);
+    const p = await res.json();
+    assert.equal(p.origem, 'qr_offline');
+    assert.equal(p.lidoEm, '2026-10-19T18:50:30-03:00');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('POST /encontros/:id/presencas com lidoEm fora da janela retorna 422 FORA_DA_JANELA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T22:30:00-03:00' })
+    });
+
+    const res = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'p-carla',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        codigo: 'ABCDEF',
+        lidoEm: '2026-10-19T18:00:00-03:00'
+      })
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'FORA_DA_JANELA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('POST /encontros/:id/presencas com lidoEm valido mas envio apos 2h do fim retorna 422 SINCRONIZACAO_TARDIA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-20T00:05:00-03:00' })
+    });
+
+    const res = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'p-carla',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        codigo: 'ABCDEF',
+        lidoEm: '2026-10-19T18:50:00-03:00'
+      })
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'SINCRONIZACAO_TARDIA');
+  } finally {
+    await servidor.fechar();
+  }
+});
