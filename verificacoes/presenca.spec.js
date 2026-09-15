@@ -362,3 +362,193 @@ test('POST /encontros/:id/presencas com lidoEm valido mas envio apos 2h do fim r
     await servidor.fechar();
   }
 });
+
+test('POST /encontros/:id/presencas/manual registra presença manual com sucesso (201) pela organização, com justificativa válida e idempotência (200)', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T20:00:00-03:00' })
+    });
+
+    const res1 = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas/manual`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'org-ana',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        participanteId: 'p-carla',
+        justificativa: 'Participou presencialmente mas app falhou'
+      })
+    });
+
+    assert.equal(res1.status, 201);
+    const p1 = await res1.json();
+    assert.equal(p1.encontroId, 'enc_5e6f7a8b');
+    assert.equal(p1.participanteId, 'p-carla');
+    assert.equal(p1.origem, 'manual');
+    assert.equal(p1.justificativa, 'Participou presencialmente mas app falhou');
+
+    const res2 = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas/manual`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'org-ana',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        participanteId: 'p-carla',
+        justificativa: 'Participou presencialmente mas app falhou'
+      })
+    });
+
+    assert.equal(res2.status, 200);
+    const p2 = await res2.json();
+    assert.equal(p2.id, p1.id);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('POST /encontros/:id/presencas/manual recusa justificativa ausente ou menor que 10 caracteres com 422 JUSTIFICATIVA_OBRIGATORIA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T20:00:00-03:00' })
+    });
+
+    const res = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas/manual`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'org-ana',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        participanteId: 'p-carla',
+        justificativa: 'Curto'
+      })
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'JUSTIFICATIVA_OBRIGATORIA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('POST /encontros/:id/presencas/manual recusa fora do prazo com 422 FORA_DA_JANELA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:00:00-03:00' })
+    });
+
+    const res = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas/manual`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'org-ana',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        participanteId: 'p-carla',
+        justificativa: 'Participou presencialmente mas app falhou'
+      })
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'FORA_DA_JANELA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('POST /encontros/:id/presencas/manual recusa participante não inscrito com 403 NAO_INSCRITO', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T20:00:00-03:00' })
+    });
+
+    const res = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas/manual`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'org-ana',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        participanteId: 'p-diego',
+        justificativa: 'Participou presencialmente mas app falhou'
+      })
+    });
+
+    assert.equal(res.status, 403);
+    const body = await res.json();
+    assert.equal(body.erro, 'NAO_INSCRITO');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('GET /encontros/:id/presencas retorna 200 e lista de presenças para organização', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  const baseURL = `http://localhost:${servidor.porta}`;
+
+  try {
+    await fetch(`${baseURL}/_teste/reset`, { method: 'POST' });
+    
+    await fetch(`${baseURL}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T20:00:00-03:00' })
+    });
+
+    await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas/manual`, {
+      method: 'POST',
+      headers: {
+        'X-Usuario': 'org-ana',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        participanteId: 'p-carla',
+        justificativa: 'Participou presencialmente mas app falhou'
+      })
+    });
+
+    const res = await fetch(`${baseURL}/encontros/enc_5e6f7a8b/presencas`, {
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(Array.isArray(body));
+    assert.equal(body.length, 1);
+    assert.equal(body[0].participanteId, 'p-carla');
+  } finally {
+    await servidor.fechar();
+  }
+});

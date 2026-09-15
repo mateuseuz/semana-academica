@@ -306,6 +306,109 @@ export function criarServidor(options = {}) {
     });
   });
 
+  // GET /encontros/:id/presencas
+  app.get('/encontros/:id/presencas', (req, res) => {
+    if (req.usuario.papel !== 'organizacao') {
+      return res.status(403).json({ erro: 'SOMENTE_ORGANIZACAO', mensagem: 'Apenas organização' });
+    }
+
+    const encontroId = req.params.id;
+    db.get('SELECT * FROM encontros WHERE id = ?', [encontroId], (err, encontro) => {
+      if (err || !encontro) {
+        return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Encontro não encontrado' });
+      }
+
+      db.all('SELECT * FROM presencas WHERE encontroId = ?', [encontroId], (err, rows) => {
+        if (err) {
+          return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+        }
+        const presencas = rows.map(r => ({
+          id: r.id,
+          encontroId: r.encontroId,
+          participanteId: r.participanteId,
+          origem: r.origem,
+          lidoEm: r.lidoEm,
+          registradaEm: r.registradaEm,
+          justificativa: r.justificativa
+        }));
+        res.json(presencas);
+      });
+    });
+  });
+
+  // POST /encontros/:id/presencas/manual
+  app.post('/encontros/:id/presencas/manual', (req, res) => {
+    if (req.usuario.papel !== 'organizacao') {
+      return res.status(403).json({ erro: 'SOMENTE_ORGANIZACAO', mensagem: 'Apenas organização' });
+    }
+
+    const encontroId = req.params.id;
+    const { participanteId, justificativa } = req.body || {};
+
+    db.get('SELECT * FROM encontros WHERE id = ?', [encontroId], (err, encontro) => {
+      if (err || !encontro) {
+        return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Encontro não encontrado' });
+      }
+
+      const agoraDate = new Date(currentClock);
+      const inicioDate = new Date(encontro.inicio);
+      const fimDate = new Date(encontro.fim);
+      const inicioJanela = new Date(inicioDate.getTime() - 15 * 60 * 1000);
+      const fimJanela = new Date(fimDate.getTime() + 2 * 60 * 60 * 1000);
+
+      if (agoraDate < inicioJanela || agoraDate > fimJanela) {
+        return res.status(422).json({ erro: 'FORA_DA_JANELA', mensagem: 'Fora da janela de presença manual' });
+      }
+
+      if (!justificativa || typeof justificativa !== 'string' || justificativa.trim().length < 10) {
+        return res.status(422).json({ erro: 'JUSTIFICATIVA_OBRIGATORIA', mensagem: 'Justificativa obrigatória (mínimo 10 caracteres)' });
+      }
+
+      db.get('SELECT * FROM inscricoes WHERE atividadeId = ? AND participanteId = ? AND status = ?', [encontro.atividadeId, participanteId, 'confirmada'], (err, inscricao) => {
+        if (err || !inscricao) {
+          return res.status(403).json({ erro: 'NAO_INSCRITO', mensagem: 'Participante não inscrito' });
+        }
+
+        db.get('SELECT * FROM presencas WHERE encontroId = ? AND participanteId = ?', [encontroId, participanteId], (err, presencaExistente) => {
+          if (presencaExistente) {
+            return res.status(200).json({
+              id: presencaExistente.id,
+              encontroId: presencaExistente.encontroId,
+              participanteId: presencaExistente.participanteId,
+              origem: presencaExistente.origem,
+              lidoEm: presencaExistente.lidoEm,
+              registradaEm: presencaExistente.registradaEm,
+              justificativa: presencaExistente.justificativa
+            });
+          }
+
+          const hex = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+          const presencaId = `pre_${hex}`;
+          const registradaEm = agoraDate.toISOString();
+          const origem = 'manual';
+          const lidoEmVal = null;
+
+          db.run('INSERT INTO presencas (id, encontroId, participanteId, origem, lidoEm, registradaEm, justificativa) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+            presencaId, encontroId, participanteId, origem, lidoEmVal, registradaEm, justificativa
+          ], (err) => {
+            if (err) {
+              return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+            }
+            res.status(201).json({
+              id: presencaId,
+              encontroId,
+              participanteId,
+              origem,
+              lidoEm: lidoEmVal,
+              registradaEm,
+              justificativa
+            });
+          });
+        });
+      });
+    });
+  });
+
   return new Promise((resolve) => {
     const port = options.porta !== undefined ? options.porta : 3000;
     const server = app.listen(port, () => {
