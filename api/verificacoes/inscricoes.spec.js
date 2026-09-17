@@ -268,5 +268,129 @@ test('respeita a precedência de erro: ATIVIDADE_CANCELADA antes de INSCRICOES_E
   }
 });
 
+test('cancela inscrição ativa antes do primeiro encontro com sucesso (200)', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    const resInscricao = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+    const inscricao = await resInscricao.json();
+
+    const res = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscricao.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.status, 'cancelada');
+    assert.equal(body.id, inscricao.id);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('recusa cancelamento de inscrição já cancelada com 422 INSCRICAO_INATIVA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    const resInscricao = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+    const inscricao = await resInscricao.json();
+
+    // First cancel
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscricao.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    // Second cancel
+    const res = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscricao.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'INSCRICAO_INATIVA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('recusa cancelamento no instante exato do início do primeiro encontro com 422 ATIVIDADE_JA_INICIADA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    const resInscricao = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+    const inscricao = await resInscricao.json();
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T19:00:00-03:00' })
+    });
+
+    const res = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscricao.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'ATIVIDADE_JA_INICIADA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('respeita a precedência no cancelamento: INSCRICAO_INATIVA antes de ATIVIDADE_JA_INICIADA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    const resInscricao = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+    const inscricao = await resInscricao.json();
+
+    // Cancel once
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscricao.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    // Advance clock past start time
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T20:00:00-03:00' })
+    });
+
+    // Try to cancel again
+    const res = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscricao.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'INSCRICAO_INATIVA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
 
 

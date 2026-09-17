@@ -371,6 +371,54 @@ export function criarServidor(options = {}) {
     });
   });
 
+  // POST /inscricoes/:id/cancelamento
+  app.post('/inscricoes/:id/cancelamento', (req, res) => {
+    if (req.usuario.papel !== 'participante') {
+      return res.status(403).json({ erro: 'SOMENTE_PARTICIPANTE', mensagem: 'Apenas participante' });
+    }
+
+    const inscricaoId = req.params.id;
+    db.get('SELECT * FROM inscricoes WHERE id = ?', [inscricaoId], (err, inscricao) => {
+      if (err || !inscricao || inscricao.participanteId !== req.usuario.id) {
+        return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Inscrição não encontrada' });
+      }
+
+      if (['cancelada', 'expirada'].includes(inscricao.status)) {
+        return res.status(422).json({ erro: 'INSCRICAO_INATIVA', mensagem: 'Inscrição inativa' });
+      }
+
+      db.all('SELECT * FROM encontros WHERE atividadeId = ? ORDER BY inicio ASC', [inscricao.atividadeId], (err, encontros) => {
+        if (err) {
+          return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+        }
+
+        if (encontros.length > 0) {
+          const primeiroInicio = new Date(encontros[0].inicio).getTime();
+          const agora = new Date(currentClock).getTime();
+          if (agora >= primeiroInicio) {
+            return res.status(422).json({ erro: 'ATIVIDADE_JA_INICIADA', mensagem: 'Atividade já iniciada' });
+          }
+        }
+
+        db.run("UPDATE inscricoes SET status = 'cancelada' WHERE id = ?", [inscricaoId], (err) => {
+          if (err) {
+            return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+          }
+
+          res.json({
+            id: inscricao.id,
+            atividadeId: inscricao.atividadeId,
+            participanteId: inscricao.participanteId,
+            status: 'cancelada',
+            posicaoNaEspera: null,
+            convocadaAte: inscricao.convocadaAte || null,
+            criadaEm: inscricao.criadaEm
+          });
+        });
+      });
+    });
+  });
+
   // GET /encontros/:id/codigo
   app.get('/encontros/:id/codigo', (req, res) => {
     if (req.usuario.papel !== 'organizacao') {
