@@ -29,7 +29,8 @@ export function criarServidor(options = {}) {
         titulo TEXT,
         tipo TEXT,
         salaId TEXT,
-        vagas INTEGER
+        vagas INTEGER,
+        situacao TEXT DEFAULT 'prevista'
       )`);
 
       db.run(`CREATE TABLE IF NOT EXISTS inscricoes (
@@ -178,6 +179,46 @@ export function criarServidor(options = {}) {
     });
   });
 
+  // POST /atividades/:id/cancelamento
+  app.post('/atividades/:id/cancelamento', (req, res) => {
+    if (req.usuario.papel !== 'organizacao') {
+      return res.status(403).json({ erro: 'SOMENTE_ORGANIZACAO', mensagem: 'Apenas organização' });
+    }
+
+    const atividadeId = req.params.id;
+    db.get('SELECT * FROM atividades WHERE id = ?', [atividadeId], (err, atividade) => {
+      if (err || !atividade) {
+        return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
+      }
+
+      db.run("UPDATE atividades SET situacao = 'cancelada' WHERE id = ?", [atividadeId], (err) => {
+        if (err) {
+          return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+        }
+
+        db.run("UPDATE inscricoes SET status = 'cancelada' WHERE atividadeId = ? AND status IN ('confirmada', 'convocada', 'em_espera')", [atividadeId], (err) => {
+          if (err) {
+            return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+          }
+
+          db.get('SELECT * FROM atividades WHERE id = ?', [atividadeId], (err, atv) => {
+            db.all('SELECT * FROM encontros WHERE atividadeId = ?', [atividadeId], (err, encontros) => {
+              res.json({
+                id: atv.id,
+                titulo: atv.titulo,
+                tipo: atv.tipo,
+                salaId: atv.salaId,
+                vagas: atv.vagas,
+                encontros: encontros.map(e => ({ id: e.id, inicio: e.inicio, fim: e.fim })),
+                situacao: atv.situacao || 'cancelada'
+              });
+            });
+          });
+        });
+      });
+    });
+  });
+
   // POST /atividades/:id/inscricoes
   app.post('/atividades/:id/inscricoes', (req, res) => {
     if (req.usuario.papel !== 'participante') {
@@ -190,21 +231,35 @@ export function criarServidor(options = {}) {
         return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
       }
 
-      // Check JA_INSCRITO (R3): active inscription in the same activity
-      db.all('SELECT * FROM inscricoes WHERE participanteId = ?', [req.usuario.id], (err, todasInscricoes) => {
+      // Check ATIVIDADE_CANCELADA (R8 / R1)
+      if (atividade.situacao === 'cancelada') {
+        return res.status(422).json({ erro: 'ATIVIDADE_CANCELADA', mensagem: 'Atividade cancelada' });
+      }
+
+      // Check INSCRICOES_ENCERRADAS (R2 / R1)
+      db.all('SELECT * FROM encontros WHERE atividadeId = ? ORDER BY inicio ASC', [atividadeId], (err, encontrosAlvo) => {
         if (err) {
           return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
         }
 
-        const ativaNaMesma = todasInscricoes.find(i => i.atividadeId === atividadeId && ['confirmada', 'em_espera', 'convocada'].includes(i.status));
-        if (ativaNaMesma) {
-          return res.status(409).json({ erro: 'JA_INSCRITO', mensagem: 'Participante já inscrito nesta atividade' });
+        if (encontrosAlvo.length > 0) {
+          const primeiroInicio = new Date(encontrosAlvo[0].inicio).getTime();
+          const fechamento = primeiroInicio - 30 * 60 * 1000;
+          const agora = new Date(currentClock).getTime();
+          if (agora >= fechamento) {
+            return res.status(422).json({ erro: 'INSCRICOES_ENCERRADAS', mensagem: 'Inscrições encerradas' });
+          }
         }
 
-        // Check CONFLITO_DE_HORARIO (R4) and LIMITE_DE_MINICURSOS (R5)
-        db.all('SELECT * FROM encontros WHERE atividadeId = ?', [atividadeId], (err, encontrosAlvo) => {
+        // Check JA_INSCRITO (R3): active inscription in the same activity
+        db.all('SELECT * FROM inscricoes WHERE participanteId = ?', [req.usuario.id], (err, todasInscricoes) => {
           if (err) {
             return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+          }
+
+          const ativaNaMesma = todasInscricoes.find(i => i.atividadeId === atividadeId && ['confirmada', 'em_espera', 'convocada'].includes(i.status));
+          if (ativaNaMesma) {
+            return res.status(409).json({ erro: 'JA_INSCRITO', mensagem: 'Participante já inscrito nesta atividade' });
           }
 
           // Find active inscriptions occupying vaga (confirmada or convocada) in other activities

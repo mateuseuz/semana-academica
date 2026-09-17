@@ -155,3 +155,118 @@ test('recusa quarta inscrição em minicurso com 422 LIMITE_DE_MINICURSOS', asyn
     await servidor.fechar();
   }
 });
+
+test('respeita a precedência de erro: INSCRICOES_ENCERRADAS antes de JA_INSCRITO', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    // Enroll p-diego first while open
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    // Advance clock past deadline
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:30:00-03:00' })
+    });
+
+    // Try to enroll p-diego again (has active inscription AND deadline passed)
+    const res = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'INSCRICOES_ENCERRADAS');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+
+test('recusa inscrição exatamente 30 minutos antes do início do primeiro encontro com INSCRICOES_ENCERRADAS', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    // Encounter starts at 2026-10-19T19:00:00-03:00. Closing is 30 min before = 18:30:00.
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:30:00-03:00' })
+    });
+
+    const res = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'INSCRICOES_ENCERRADAS');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('recusa inscrição em atividade cancelada com ATIVIDADE_CANCELADA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    
+    // Cancel activity via POST /atividades/atv_1a2b3c4d/cancelamento as org-ana
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+
+    const res = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'ATIVIDADE_CANCELADA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('respeita a precedência de erro: ATIVIDADE_CANCELADA antes de INSCRICOES_ENCERRADAS', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    
+    // Set clock past deadline
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:30:00-03:00' })
+    });
+
+    // Cancel activity
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+
+    const res = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.equal(body.erro, 'ATIVIDADE_CANCELADA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+
+
