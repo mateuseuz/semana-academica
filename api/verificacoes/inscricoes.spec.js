@@ -392,5 +392,501 @@ test('respeita a precedência no cancelamento: INSCRICAO_INATIVA antes de ATIVID
   }
 });
 
+test('promove o primeiro da fila para convocada com convocadaAte preenchido quando inscrição confirmada é cancelada', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f4', titulo: 'Atividade F4', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f4', atividadeId: 'atv_f4', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+    assert.equal(inscFabio.status, 'em_espera');
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resCheck.status, 200);
+    const bodyFabio = await resCheck.json();
+    assert.equal(bodyFabio.status, 'convocada');
+    assert.ok(bodyFabio.convocadaAte);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('define convocadaAte como o fechamento das inscrições quando a convocação ocorre a menos de 2h do fechamento', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f4_t2', titulo: 'Atividade F4 T2', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f4_t2', atividadeId: 'atv_f4_t2', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t2/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t2/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:00:00-03:00' })
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabio = await resCheck.json();
+    assert.equal(bodyFabio.status, 'convocada');
+    assert.equal(bodyFabio.convocadaAte, new Date('2026-10-19T18:30:00-03:00').toISOString());
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('confirma convocação dentro do prazo com sucesso (200, status confirmada)', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f4_t3', titulo: 'Atividade F4 T3', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f4_t3', atividadeId: 'atv_f4_t3', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t3/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t3/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resConf = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+
+    assert.equal(resConf.status, 200);
+    const bodyConf = await resConf.json();
+    assert.equal(bodyConf.status, 'confirmada');
+    assert.equal(bodyConf.id, inscFabio.id);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('expira convocação quando relógio avança além de convocadaAte e promove o próximo da fila', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f4_t4', titulo: 'Atividade F4 T4', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f4_t4', atividadeId: 'atv_f4_t4', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t4/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t4/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+
+    const resGabriela = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t4/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const inscGabriela = await resGabriela.json();
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-13T11:00:01-03:00' })
+    });
+
+    const resFabioCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabio = await resFabioCheck.json();
+    assert.equal(bodyFabio.status, 'expirada');
+
+    const resGabrielaCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscGabriela.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const bodyGabriela = await resGabrielaCheck.json();
+    assert.equal(bodyGabriela.status, 'convocada');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('confirmação com relógio em convocadaAte exato é válida (200), mas 1ms depois responde 422 CONVOCACAO_EXPIRADA', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f4_t5', titulo: 'Atividade F4 T5', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f4_t5', atividadeId: 'atv_f4_t5', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t5/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t5/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resFabioCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabio = await resFabioCheck.json();
+    const convocadaAte = bodyFabio.convocadaAte;
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: convocadaAte })
+    });
+
+    const resConfExato = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resConfExato.status, 200);
+
+    // 1ms later
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f4_t5b', titulo: 'Atividade F4 T5B', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f4_t5b', atividadeId: 'atv_f4_t5b', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa2 = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t5b/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa2 = await resElisa2.json();
+
+    const resFabio2 = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t5b/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio2 = await resFabio2.json();
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa2.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resFabio2Check = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio2.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabio2 = await resFabio2Check.json();
+    const ateMs = new Date(bodyFabio2.convocadaAte).getTime();
+    const umMsDepois = new Date(ateMs + 1).toISOString();
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: umMsDepois })
+    });
+
+    const resConfDepois = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio2.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resConfDepois.status, 422);
+    const bodyDepois = await resConfDepois.json();
+    assert.equal(bodyDepois.erro, 'CONVOCACAO_EXPIRADA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('recusa confirmação de inscrição em_espera ou expirada com os erros corretos', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f4_t6', titulo: 'Atividade F4 T6', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f4_t6', atividadeId: 'atv_f4_t6', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t6/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f4_t6/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+
+    const resConfEspera = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resConfEspera.status, 422);
+    const bodyEspera = await resConfEspera.json();
+    assert.equal(bodyEspera.erro, 'SEM_CONVOCACAO');
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-13T11:00:01-03:00' })
+    });
+
+    const resConfExpirada = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resConfExpirada.status, 422);
+    const bodyExpirada = await resConfExpirada.json();
+    assert.equal(bodyExpirada.erro, 'CONVOCACAO_EXPIRADA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('precedência na confirmação: CONVOCACAO_EXPIRADA antes de CONFLITO_DE_HORARIO; e CONFLITO_DE_HORARIO antes de LIMITE_DE_MINICURSOS mantendo convocação válida', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_c1', titulo: 'Atv C1', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_c1', atividadeId: 'atv_c1', inicio: '2026-10-20T10:00:00-03:00', fim: '2026-10-20T12:00:00-03:00' })
+    });
+
+    const resE1 = await fetch(`http://localhost:${servidor.porta}/atividades/atv_c1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscE1 = await resE1.json();
+
+    const resF1 = await fetch(`http://localhost:${servidor.porta}/atividades/atv_c1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscF1 = await resF1.json();
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_c2', titulo: 'Atv C2', tipo: 'palestra', salaId: 'sala-2', vagas: 10 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_c2', atividadeId: 'atv_c2', inicio: '2026-10-20T11:00:00-03:00', fim: '2026-10-20T13:00:00-03:00' })
+    });
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_c2/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscE1.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-13T11:00:01-03:00' })
+    });
+
+    const resConfExp = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscF1.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resConfExp.status, 422);
+    const bodyExp = await resConfExp.json();
+    assert.equal(bodyExp.erro, 'CONVOCACAO_EXPIRADA');
+
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_d1', titulo: 'Atv D1', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_d1', atividadeId: 'atv_d1', inicio: '2026-10-20T10:00:00-03:00', fim: '2026-10-20T12:00:00-03:00' })
+    });
+
+    const resE2 = await fetch(`http://localhost:${servidor.porta}/atividades/atv_d1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscE2 = await resE2.json();
+
+    const resF2 = await fetch(`http://localhost:${servidor.porta}/atividades/atv_d1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscF2 = await resF2.json();
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_d2', titulo: 'Atv D2', tipo: 'palestra', salaId: 'sala-2', vagas: 10 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_d2', atividadeId: 'atv_d2', inicio: '2026-10-20T11:00:00-03:00', fim: '2026-10-20T13:00:00-03:00' })
+    });
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_d2/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscE2.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resConfConf = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscF2.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resConfConf.status, 409);
+    const bodyConf = await resConfConf.json();
+    assert.equal(bodyConf.erro, 'CONFLITO_DE_HORARIO');
+
+    const resCheckValid = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscF2.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyValid = await resCheckValid.json();
+    assert.equal(bodyValid.status, 'convocada');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+
 
 

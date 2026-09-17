@@ -38,6 +38,7 @@ export function criarServidor(options = {}) {
         atividadeId TEXT,
         participanteId TEXT,
         status TEXT,
+        convocadaAte TEXT,
         criadaEm TEXT
       )`);
 
@@ -136,7 +137,9 @@ export function criarServidor(options = {}) {
     const { vagas } = req.body || {};
     if (vagas !== undefined) {
       db.run('UPDATE atividades SET vagas = ? WHERE id = ?', [vagas, req.params.id], () => {
-        res.status(204).send();
+        processarVagaLiberada(req.params.id, currentClock, () => {
+          res.status(204).send();
+        });
       });
     } else {
       res.status(204).send();
@@ -371,6 +374,295 @@ export function criarServidor(options = {}) {
     });
   });
 
+  function atualizarEventos(callback) {
+    const agoraMs = new Date(currentClock).getTime();
+    db.all("SELECT * FROM inscricoes WHERE status = 'convocada' AND convocadaAte IS NOT NULL", [], (err, rows) => {
+      if (err || !rows || rows.length === 0) {
+        if (callback) callback();
+        return;
+      }
+
+      const expiredRows = rows.filter(r => agoraMs > new Date(r.convocadaAte).getTime());
+      if (expiredRows.length === 0) {
+        if (callback) callback();
+        return;
+      }
+
+      expiredRows.sort((a, b) => new Date(a.convocadaAte).getTime() - new Date(b.convocadaAte).getTime());
+      const rowToProcess = expiredRows[0];
+
+      db.run("UPDATE inscricoes SET status = 'expirada' WHERE id = ?", [rowToProcess.id], (err) => {
+        processarVagaLiberada(rowToProcess.atividadeId, rowToProcess.convocadaAte, () => {
+          atualizarEventos(callback);
+        });
+      });
+    });
+  }
+
+  function processarVagaLiberada(atividadeId, instanteLiberacao, callback) {
+    db.get('SELECT * FROM atividades WHERE id = ?', [atividadeId], (err, atividade) => {
+      if (err || !atividade) {
+        if (callback) callback();
+        return;
+      }
+
+      db.all('SELECT * FROM encontros WHERE atividadeId = ? ORDER BY inicio ASC', [atividadeId], (err, encontros) => {
+        if (!encontros || encontros.length === 0) {
+          if (callback) callback();
+          return;
+        }
+
+        const primeiroInicio = new Date(encontros[0].inicio).getTime();
+        const fechamento = primeiroInicio - 30 * 60 * 1000;
+        const agoraMs = new Date(currentClock).getTime();
+
+        if (agoraMs >= fechamento) {
+          if (callback) callback();
+          return;
+        }
+
+        db.all('SELECT * FROM inscricoes WHERE atividadeId = ?', [atividadeId], (err, inscricoes) => {
+          if (err) {
+            if (callback) callback();
+            return;
+          }
+          const ocupadas = inscricoes.filter(i => i.status === 'confirmada' || i.status === 'convocada').length;
+          const vagasRestantes = Math.max(0, atividade.vagas - ocupadas);
+
+          if (vagasRestantes <= 0) {
+            if (callback) callback();
+            return;
+          }
+
+          db.all("SELECT * FROM inscricoes WHERE atividadeId = ? AND status = 'em_espera' ORDER BY criadaEm ASC LIMIT 1", [atividadeId], (err, rows) => {
+            if (err || !rows || rows.length === 0) {
+              if (callback) callback();
+              return;
+            }
+
+            const proximo = rows[0];
+            const convocadaAtMs = agoraMs;
+            const doisHorasMs = convocadaAtMs + 2 * 60 * 60 * 1000;
+            const convocadaAteMs = Math.min(doisHorasMs, fechamento);
+            const convocadaAte = new Date(convocadaAteMs).toISOString();
+
+            db.run("UPDATE inscricoes SET status = 'convocada', convocadaAte = ? WHERE id = ?", [convocadaAte, proximo.id], (err) => {
+              if (callback) callback();
+            });
+          });
+        });
+      });
+    });
+  }
+
+  // GET /inscricoes
+  app.get('/inscricoes', (req, res) => {
+    atualizarEventos(() => {
+      const { atividadeId } = req.query;
+      let query = 'SELECT * FROM inscricoes';
+      let params = [];
+      let conditions = [];
+
+      if (req.usuario.papel === 'participante') {
+        conditions.push('participanteId = ?');
+        params.push(req.usuario.id);
+      }
+
+      if (atividadeId) {
+        conditions.push('atividadeId = ?');
+        params.push(atividadeId);
+      }
+
+      if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
+      }
+
+      db.all(query, params, (err, rows) => {
+        if (err) {
+          return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+        }
+
+        const atvIds = [...new Set(rows.map(r => r.atividadeId))];
+        if (atvIds.length === 0) {
+          return res.json([]);
+        }
+
+        db.all(`SELECT id, atividadeId, status, criadaEm, rowid FROM inscricoes WHERE atividadeId IN (${atvIds.map(() => '?').join(',')}) AND status = 'em_espera' ORDER BY criadaEm ASC, rowid ASC`, atvIds, (err, esperaRows) => {
+          if (err) {
+            return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+          }
+
+          const mapPos = new Map();
+          const porAtividade = {};
+          for (const r of esperaRows) {
+            if (!porAtividade[r.atividadeId]) porAtividade[r.atividadeId] = [];
+            porAtividade[r.atividadeId].push(r.id);
+          }
+
+          for (const [atvId, ids] of Object.entries(porAtividade)) {
+            ids.forEach((id, index) => {
+              mapPos.set(id, index + 1);
+            });
+          }
+
+          const result = rows.map(r => ({
+            id: r.id,
+            atividadeId: r.atividadeId,
+            participanteId: r.participanteId,
+            status: r.status,
+            posicaoNaEspera: r.status === 'em_espera' ? (mapPos.get(r.id) || null) : null,
+            convocadaAte: r.convocadaAte || null,
+            criadaEm: r.criadaEm
+          }));
+
+          res.json(result);
+        });
+      });
+    });
+  });
+
+  // GET /inscricoes/:id
+  app.get('/inscricoes/:id', (req, res) => {
+    atualizarEventos(() => {
+      const inscricaoId = req.params.id;
+      db.get('SELECT * FROM inscricoes WHERE id = ?', [inscricaoId], (err, inscricao) => {
+        if (err || !inscricao) {
+          return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Inscrição não encontrada' });
+        }
+
+        if (req.usuario.papel === 'participante' && inscricao.participanteId !== req.usuario.id) {
+          return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Inscrição não encontrada' });
+        }
+
+        if (inscricao.status === 'em_espera') {
+          db.all("SELECT id FROM inscricoes WHERE atividadeId = ? AND status = 'em_espera' ORDER BY criadaEm ASC, rowid ASC", [inscricao.atividadeId], (err, rows) => {
+            const idx = rows.findIndex(r => r.id === inscricao.id);
+            const posicaoNaEspera = idx >= 0 ? idx + 1 : null;
+            res.json({
+              id: inscricao.id,
+              atividadeId: inscricao.atividadeId,
+              participanteId: inscricao.participanteId,
+              status: inscricao.status,
+              posicaoNaEspera,
+              convocadaAte: inscricao.convocadaAte || null,
+              criadaEm: inscricao.criadaEm
+            });
+          });
+        } else {
+          res.json({
+            id: inscricao.id,
+            atividadeId: inscricao.atividadeId,
+            participanteId: inscricao.participanteId,
+            status: inscricao.status,
+            posicaoNaEspera: null,
+            convocadaAte: inscricao.convocadaAte || null,
+            criadaEm: inscricao.criadaEm
+          });
+        }
+      });
+    });
+  });
+
+  // POST /inscricoes/:id/confirmacao
+  app.post('/inscricoes/:id/confirmacao', (req, res) => {
+    if (req.usuario.papel !== 'participante') {
+      return res.status(403).json({ erro: 'SOMENTE_PARTICIPANTE', mensagem: 'Apenas participante' });
+    }
+
+    atualizarEventos(() => {
+      const inscricaoId = req.params.id;
+      db.get('SELECT * FROM inscricoes WHERE id = ?', [inscricaoId], (err, inscricao) => {
+        if (err || !inscricao || inscricao.participanteId !== req.usuario.id) {
+          return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Inscrição não encontrada' });
+        }
+
+        if (['em_espera', 'confirmada', 'cancelada'].includes(inscricao.status)) {
+          return res.status(422).json({ erro: 'SEM_CONVOCACAO', mensagem: 'Inscrição sem convocação ativa' });
+        }
+
+        if (inscricao.status === 'expirada') {
+          return res.status(422).json({ erro: 'CONVOCACAO_EXPIRADA', mensagem: 'Convocação expirada' });
+        }
+
+        db.get('SELECT * FROM atividades WHERE id = ?', [inscricao.atividadeId], (err, atividade) => {
+          if (err || !atividade) {
+            return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
+          }
+
+          db.all('SELECT * FROM encontros WHERE atividadeId = ? ORDER BY inicio ASC', [inscricao.atividadeId], (err, encontrosAlvo) => {
+            db.all('SELECT * FROM inscricoes WHERE participanteId = ?', [req.usuario.id], (err, todasInscricoes) => {
+              const ocupandoVagaOutras = todasInscricoes.filter(i => ['confirmada', 'convocada'].includes(i.status) && i.atividadeId !== inscricao.atividadeId);
+
+              function checkMinicursos() {
+                if (atividade.tipo === 'minicurso' && ocupandoVagaOutras.length > 0) {
+                  const outrasAtvIds = [...new Set(ocupandoVagaOutras.map(i => i.atividadeId))];
+                  db.all(`SELECT * FROM atividades WHERE id IN (${outrasAtvIds.map(() => '?').join(',')})`, outrasAtvIds, (err, outrasAtividades) => {
+                    const minicursosOcupados = outrasAtividades.filter(a => a.tipo === 'minicurso').length;
+                    if (minicursosOcupados >= 3) {
+                      return res.status(422).json({ erro: 'LIMITE_DE_MINICURSOS', mensagem: 'Limite de minicursos atingido' });
+                    }
+                    checkConflitos();
+                  });
+                } else {
+                  checkConflitos();
+                }
+              }
+
+              function checkConflitos() {
+                if (ocupandoVagaOutras.length === 0 || encontrosAlvo.length === 0) {
+                  return performConfirmation();
+                }
+
+                const otherAtvIds = [...new Set(ocupandoVagaOutras.map(i => i.atividadeId))];
+                db.all(`SELECT * FROM encontros WHERE atividadeId IN (${otherAtvIds.map(() => '?').join(',')})`, otherAtvIds, (err, encontrosOutros) => {
+                  let hasConflict = false;
+                  for (const eAlvo of encontrosAlvo) {
+                    for (const eOutro of encontrosOutros) {
+                      const inicio1 = new Date(eAlvo.inicio).getTime();
+                      const fim1 = new Date(eAlvo.fim).getTime();
+                      const inicio2 = new Date(eOutro.inicio).getTime();
+                      const fim2 = new Date(eOutro.fim).getTime();
+                      if (inicio1 < fim2 && inicio2 < fim1) {
+                        hasConflict = true;
+                        break;
+                      }
+                    }
+                    if (hasConflict) break;
+                  }
+
+                  if (hasConflict) {
+                    return res.status(409).json({ erro: 'CONFLITO_DE_HORARIO', mensagem: 'Conflito de horário com outra atividade' });
+                  }
+
+                  performConfirmation();
+                });
+              }
+
+              function performConfirmation() {
+                db.run("UPDATE inscricoes SET status = 'confirmada' WHERE id = ?", [inscricao.id], (err) => {
+                  if (err) {
+                    return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+                  }
+                  res.json({
+                    id: inscricao.id,
+                    atividadeId: inscricao.atividadeId,
+                    participanteId: inscricao.participanteId,
+                    status: 'confirmada',
+                    posicaoNaEspera: null,
+                    convocadaAte: inscricao.convocadaAte || null,
+                    criadaEm: inscricao.criadaEm
+                  });
+                });
+              }
+
+              checkMinicursos();
+            });
+          });
+        });
+      });
+    });
+  });
+
   // POST /inscricoes/:id/cancelamento
   app.post('/inscricoes/:id/cancelamento', (req, res) => {
     if (req.usuario.papel !== 'participante') {
@@ -405,14 +697,16 @@ export function criarServidor(options = {}) {
             return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
           }
 
-          res.json({
-            id: inscricao.id,
-            atividadeId: inscricao.atividadeId,
-            participanteId: inscricao.participanteId,
-            status: 'cancelada',
-            posicaoNaEspera: null,
-            convocadaAte: inscricao.convocadaAte || null,
-            criadaEm: inscricao.criadaEm
+          processarVagaLiberada(inscricao.atividadeId, currentClock, () => {
+            res.json({
+              id: inscricao.id,
+              atividadeId: inscricao.atividadeId,
+              participanteId: inscricao.participanteId,
+              status: 'cancelada',
+              posicaoNaEspera: null,
+              convocadaAte: inscricao.convocadaAte || null,
+              criadaEm: inscricao.criadaEm
+            });
           });
         });
       });
