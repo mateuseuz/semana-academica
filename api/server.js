@@ -122,7 +122,8 @@ app.post('/atividades', (req, res) => {
   }
 
   // R3: ENCONTRO_INVALIDO
-  for (const e of encontros) {
+  for (let i = 0; i < encontros.length; i++) {
+    const e = encontros[i];
     if (new Date(e.inicio) >= new Date(e.fim)) {
       return res.status(422).json({ erro: 'ENCONTRO_INVALIDO', mensagem: 'Início deve ser menor que fim' });
     }
@@ -140,9 +141,10 @@ app.post('/atividades', (req, res) => {
     if (dtInicio < new Date('2026-10-19T00:00:00-03:00') || dtFim > new Date('2026-10-23T23:59:59-03:00')) {
       return res.status(422).json({ erro: 'ENCONTRO_INVALIDO', mensagem: 'Encontro fora do período do evento' });
     }
-    for (const outro of encontros) {
-      if (outro === e) continue;
-      if (new Date(e.inicio) < new Date(outro.fim) && new Date(e.fim) > new Date(outro.inicio)) {
+    for (let j = 0; j < encontros.length; j++) {
+      if (i === j) continue;
+      const outro = encontros[j];
+      if (new Date(e.inicio).getTime() < new Date(outro.fim).getTime() && new Date(e.fim).getTime() > new Date(outro.inicio).getTime()) {
         return res.status(422).json({ erro: 'ENCONTRO_INVALIDO', mensagem: 'Encontros da mesma atividade não podem se sobrepor' });
       }
     }
@@ -157,14 +159,20 @@ app.post('/atividades', (req, res) => {
 
   // R5: CONFLITO_DE_SALA
   // Na mesma sala, entre o fim de um encontro e o início do seguinte deve haver no mínimo 15 minutos
-  for (const e of encontros) {
+  for (let i = 0; i < encontros.length; i++) {
+    const e = encontros[i];
     for (const atvAtiva of atividades) {
       if (atvAtiva.salaId !== salaId) continue;
-      for (const ee of atvAtiva.encontros) {
+      for (let j = 0; j < atvAtiva.encontros.length; j++) {
+        const ee = atvAtiva.encontros[j];
         if (calcularSituacao(atvAtiva) === 'cancelada') continue;
+        // Verifica sobreposicao real usando timestamps
+        if (new Date(e.inicio).getTime() < new Date(ee.fim).getTime() && new Date(e.fim).getTime() > new Date(ee.inicio).getTime()) {
+          return res.status(409).json({ erro: 'CONFLITO_DE_SALA', mensagem: 'Conflito de sala: sobreposicao de horarios' });
+        }
         // Calcula o gap entre os encontros (em minutos)
-        const gap1 = (new Date(e.inicio) - new Date(ee.fim)) / 60000; // gap entre fim de ee e início de e
-        const gap2 = (new Date(ee.inicio) - new Date(e.fim)) / 60000; // gap entre fim de e e início de ee
+        const gap1 = (new Date(e.inicio).getTime() - new Date(ee.fim).getTime()) / 60000;
+        const gap2 = (new Date(ee.inicio).getTime() - new Date(e.fim).getTime()) / 60000;
         if ((gap1 >= 0 && gap1 < 15) || (gap2 >= 0 && gap2 < 15)) {
           return res.status(409).json({ erro: 'CONFLITO_DE_SALA', mensagem: 'Conflito de sala: menos de 15 minutos de intervalo' });
         }
