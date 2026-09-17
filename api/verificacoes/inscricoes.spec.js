@@ -1262,6 +1262,47 @@ test('cancelar atividade passa todas inscrições confirmada, convocada e em_esp
   }
 });
 
+test('consulta de atividade expõe ocupadas, vagasRestantes e emEspera corretos (R9)', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_r9_test', titulo: 'Atividade R9 Test', tipo: 'palestra', salaId: 'sala-1', vagas: 3 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_r9_test', atividadeId: 'atv_r9_test', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const inscCarla = await (await fetch(`http://localhost:${servidor.porta}/atividades/atv_r9_test/inscricoes`, { method: 'POST', headers: { 'X-Usuario': 'p-carla' } })).json();
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_r9_test/inscricoes`, { method: 'POST', headers: { 'X-Usuario': 'p-diego' } });
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_r9_test/inscricoes`, { method: 'POST', headers: { 'X-Usuario': 'p-elisa' } });
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_r9_test/inscricoes`, { method: 'POST', headers: { 'X-Usuario': 'p-fabio' } });
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_r9_test/inscricoes`, { method: 'POST', headers: { 'X-Usuario': 'p-gabriela' } });
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscCarla.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-carla' }
+    });
+
+    const resAtv = await fetch(`http://localhost:${servidor.porta}/atividades/atv_r9_test`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+    assert.equal(resAtv.status, 200);
+    const atv = await resAtv.json();
+
+    assert.equal(atv.ocupadas, 3);
+    assert.equal(atv.vagasRestantes, 0);
+    assert.equal(atv.emEspera, 1);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
 
 
 

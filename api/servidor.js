@@ -455,6 +455,51 @@ export function criarServidor(options = {}) {
     });
   }
 
+  // GET /atividades/:id
+  app.get('/atividades/:id', (req, res) => {
+    atualizarEventos(() => {
+      const atividadeId = req.params.id;
+      db.get('SELECT * FROM atividades WHERE id = ?', [atividadeId], (err, atividade) => {
+        if (err || !atividade) {
+          return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
+        }
+
+        db.all('SELECT * FROM encontros WHERE atividadeId = ? ORDER BY inicio ASC', [atividadeId], (err, encontros) => {
+          db.all('SELECT * FROM inscricoes WHERE atividadeId = ?', [atividadeId], (err, inscricoes) => {
+            if (err) {
+              return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+            }
+
+            const ocupadas = inscricoes.filter(i => i.status === 'confirmada' || i.status === 'convocada').length;
+            const vagasRestantes = Math.max(0, atividade.vagas - ocupadas);
+            const emEspera = inscricoes.filter(i => i.status === 'em_espera').length;
+
+            let cargaHorariaMinutos = 0;
+            for (const enc of encontros) {
+              const inicioMs = new Date(enc.inicio).getTime();
+              const fimMs = new Date(enc.fim).getTime();
+              cargaHorariaMinutos += Math.max(0, Math.floor((fimMs - inicioMs) / 60000));
+            }
+
+            res.json({
+              id: atividade.id,
+              titulo: atividade.titulo,
+              tipo: atividade.tipo,
+              salaId: atividade.salaId,
+              vagas: atividade.vagas,
+              encontros: encontros.map(e => ({ id: e.id, inicio: e.inicio, fim: e.fim })),
+              cargaHorariaMinutos,
+              situacao: atividade.situacao || 'prevista',
+              ocupadas,
+              vagasRestantes,
+              emEspera
+            });
+          });
+        });
+      });
+    });
+  });
+
   // GET /inscricoes
   app.get('/inscricoes', (req, res) => {
     atualizarEventos(() => {
