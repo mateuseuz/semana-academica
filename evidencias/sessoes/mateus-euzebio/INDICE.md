@@ -22,4 +22,6 @@ Requisições são chamadas ao modelo: cada passo do agente é uma. Skills conta
 | 16/09 22:09 | [Testes TDD para interface M1 do app](ses_f53164775ffenAaU9dlrOirc47.md) | 0 | — | — | 0 / 0 | 0 | 0 | 0 | — |
 | 17/09 19:46 | [<tool_call>bash](ses_f4e72f0daffexYEwkSRdi6E1Aq.md) | 0 | — | — | 0 / 0 | 0 | 0 | 0 | — |
 | 17/09 19:54 | [Auditar M1 contra specs M1-grade.md e atualizar auditoria](ses_f4e6bca87ffeXOr93ogHHDxTfs.md) | 0 | — | — | 0 / 0 | 0 | 0 | 0 | — |
-| | **Total: 10 sessões** | 0 | — | — | 0 / 0 | 0 | 0 | 0 | — |
+| 17/09 20:07 | [Implementar regras R1-R16 e rotas de teste no backend api/s…](ses_f4e606555ffe9cWQw0dsWnsqgd.md) | 0 | — | — | 0 / 0 | 0 | 0 | 0 | — |
+| 17/09 20:08 | [Regras R1-R16 em api/server.js para M1](ses_f4e5e9bf3ffeA5tJNwwzmzk6uZ.md) | 0 | — | — | 0 / 0 | 0 | 0 | 0 | — |
+| | **Total: 12 sessões** | 0 | — | — | 0 / 0 | 0 | 0 | 0 | — |
