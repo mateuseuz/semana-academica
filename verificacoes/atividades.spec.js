@@ -196,6 +196,48 @@ test('R5 - aceita dois encontros na mesma sala com 20 min de intervalo', async (
   assert.equal(res2.status, 201);
 });
 
+test('BUG-3 - R5 recusa sobreposicao entre atividades diferentes na mesma sala', async () => {
+  await reset();
+  const res1 = await fetch(`http://localhost:${port}/atividades`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+    body: JSON.stringify({
+      titulo: 'Atividade A', tipo: 'palestra', salaId: 'lab-3', vagas: 10,
+      encontros: [{ inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' }]
+    })
+  });
+  assert.equal(res1.status, 201);
+  const res2 = await fetch(`http://localhost:${port}/atividades`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+    body: JSON.stringify({
+      titulo: 'Atividade B', tipo: 'palestra', salaId: 'lab-3', vagas: 10,
+      encontros: [{ inicio: '2026-10-19T21:00:00-03:00', fim: '2026-10-19T23:00:00-03:00' }]
+    })
+  });
+  assert.equal(res2.status, 409);
+  const body = await res2.json();
+  assert.equal(body.erro, 'CONFLITO_DE_SALA');
+});
+
+test('BUG-2 - R3 refatora verificacao de sobreposicao interna usando indices', async () => {
+  await reset();
+  const res = await fetch(`http://localhost:${port}/atividades`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+    body: JSON.stringify({
+      titulo: 'Overlap test', tipo: 'minicurso', salaId: 'lab-3', vagas: 10,
+      encontros: [
+        { inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' },
+        { inicio: '2026-10-19T20:00:00-03:00', fim: '2026-10-19T23:00:00-03:00' }
+      ]
+    })
+  });
+  assert.equal(res.status, 422);
+  const body = await res.json();
+  assert.equal(body.erro, 'ENCONTRO_INVALIDO');
+});
+
 test('R16 - GET /atividades?tipo=invalido retorna lista vazia', async () => {
   await reset();
   const res = await fetch(`http://localhost:${port}/atividades?tipo=invalido`);
@@ -322,7 +364,7 @@ test('R15 - GET /atividades?dia=2026-10-19 retorna atividades com encontro naque
     assert.equal(body.erro, 'CAMPO_NAO_EDITAVEL');
   });
 
-  test('F3 - PATCH recusa alteracao de campo nao editavel (salaId)', async () => {
+  test('F3 - PATCH recusa alteracao de campo nao editavel (id)', async () => {
     await reset();
     const createRes = await fetch(`http://localhost:${port}/atividades`, {
       method: 'POST',
@@ -336,11 +378,33 @@ test('R15 - GET /atividades?dia=2026-10-19 retorna atividades com encontro naque
     const patchRes = await fetch(`http://localhost:${port}/atividades/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
-      body: JSON.stringify({ salaId: 'auditorio' })
+      body: JSON.stringify({ id: 'changed' })
     });
     assert.equal(patchRes.status, 422);
     const body = await patchRes.json();
     assert.equal(body.erro, 'CAMPO_NAO_EDITAVEL');
+  });
+
+  test('F3 - PATCH altera salaId com sucesso quando sem conflito', async () => {
+    await reset();
+    const createRes = await fetch(`http://localhost:${port}/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({
+        titulo: 'Original', tipo: 'palestra', salaId: 'lab-3', vagas: 10,
+        encontros: [{ inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' }]
+      })
+    });
+    assert.equal(createRes.status, 201);
+    const created = await createRes.json();
+    const patchRes = await fetch(`http://localhost:${port}/atividades/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({ salaId: 'sala-101' })
+    });
+    assert.equal(patchRes.status, 200);
+    const body = await patchRes.json();
+    assert.equal(body.salaId, 'sala-101');
   });
 
   test('F3 - PATCH recusa aumento de vagas acima da capacidade', async () => {
@@ -362,6 +426,64 @@ test('R15 - GET /atividades?dia=2026-10-19 retorna atividades com encontro naque
     assert.equal(patchRes.status, 422);
     const body = await patchRes.json();
     assert.equal(body.erro, 'VAGAS_ACIMA_DA_CAPACIDADE');
+  });
+
+  // --- R10: VAGAS_ABAIXO_DOS_INSCRITOS ---
+
+  test('R10 - PATCH recusa reduzir vagas abaixo de inscritos', async () => {
+    await reset();
+    const createRes = await fetch(`http://localhost:${port}/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({
+        titulo: 'Com inscritos', tipo: 'palestra', salaId: 'lab-3', vagas: 10,
+        encontros: [{ inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' }],
+        ocupadas: 8
+      })
+    });
+    assert.equal(createRes.status, 201);
+    const created = await createRes.json();
+    const patchRes = await fetch(`http://localhost:${port}/atividades/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({ vagas: 3 })
+    });
+    assert.equal(patchRes.status, 409);
+    const body = await patchRes.json();
+    assert.equal(body.erro, 'VAGAS_ABAIXO_DOS_INSCRITOS');
+  });
+
+  // --- R11: CONFLITO_DE_SALA no PATCH ---
+
+  test('R11 - PATCH recusa mudanca de sala para com conflito', async () => {
+    await reset();
+    const res1 = await fetch(`http://localhost:${port}/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({
+        titulo: 'Atividade A', tipo: 'palestra', salaId: 'lab-3', vagas: 10,
+        encontros: [{ inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' }]
+      })
+    });
+    assert.equal(res1.status, 201);
+    const res2 = await fetch(`http://localhost:${port}/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({
+        titulo: 'Atividade B', tipo: 'palestra', salaId: 'sala-101', vagas: 10,
+        encontros: [{ inicio: '2026-10-19T20:00:00-03:00', fim: '2026-10-19T23:00:00-03:00' }]
+      })
+    });
+    assert.equal(res2.status, 201);
+    const created = await res2.json();
+    const patchRes = await fetch(`http://localhost:${port}/atividades/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({ salaId: 'lab-3' })
+    });
+    assert.equal(patchRes.status, 409);
+    const body = await patchRes.json();
+    assert.equal(body.erro, 'CONFLITO_DE_SALA');
   });
 
   // --- FATIA 4: Cancelamento e situação ---
@@ -436,3 +558,50 @@ test('R15 - GET /atividades?dia=2026-10-19 retorna atividades com encontro naque
     assert.equal(body.erro, 'ATIVIDADE_JA_INICIADA');
   });
 
+  // --- FATIA: R14 - Situa��o pelo rel�gio (BUG-1: >= vs >) ---
+
+  test('R14 - no instante exato do fim do �ltimo encontro, situacao deve ser em_andamento', async () => {
+    await reset();
+    const createRes = await fetch(`http://localhost:${port}/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({
+        titulo: 'Para testar R14', tipo: 'palestra', salaId: 'lab-3', vagas: 10,
+        encontros: [{ inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T20:00:00-03:00' }]
+      })
+    });
+    assert.equal(createRes.status, 201);
+    // Avan�ar rel�gio para exatamente o fim do �ltimo encontro
+    await fetch(`http://localhost:${port}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T20:00:00-03:00' })
+    });
+    const getRes = await fetch(`http://localhost:${port}/atividades`);
+    assert.equal(getRes.status, 200);
+    const body = await getRes.json();
+    const atv = body.find(a => a.titulo === 'Para testar R14');
+    assert.equal(atv.situacao, 'em_andamento');
+  });
+
+  test('R14 - ap�s o fim do �ltimo encontro, situacao deve ser encerrada', async () => {
+    await reset();
+    await fetch(`http://localhost:${port}/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Usuario': 'org-ana' },
+      body: JSON.stringify({
+        titulo: 'Para testar R14 fim', tipo: 'palestra', salaId: 'lab-3', vagas: 10,
+        encontros: [{ inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T20:00:00-03:00' }]
+      })
+    });
+    // Avan�ar rel�gio para depois do fim do �ltimo encontro
+    await fetch(`http://localhost:${port}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T20:00:01-03:00' })
+    });
+    const getRes = await fetch(`http://localhost:${port}/atividades`);
+    const body = await getRes.json();
+    const atv = body.find(a => a.titulo === 'Para testar R14 fim');
+    assert.equal(atv.situacao, 'encerrada');
+  });

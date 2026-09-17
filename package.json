@@ -1,7 +1,6 @@
 {
   "name": "semana-academica",
   "version": "1.0.0",
-<<<<<<< HEAD
   "description": "API da Semana Acadêmica 2026",
   "type": "module",
   "main": "api/server.js",
@@ -11,9 +10,5 @@
   },
   "dependencies": {
     "express": "^4.21.0"
-=======
-  "scripts": {
-    "test": "node --test verificacoes/**/*.spec.js"
->>>>>>> 866111a2c00369bbb519969f849de703e5ad95c7
   }
 }
