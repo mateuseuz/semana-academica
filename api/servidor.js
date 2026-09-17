@@ -36,7 +36,8 @@ export function criarServidor(options = {}) {
         id TEXT PRIMARY KEY,
         atividadeId TEXT,
         participanteId TEXT,
-        status TEXT
+        status TEXT,
+        criadaEm TEXT
       )`);
 
       db.run(`CREATE TABLE IF NOT EXISTS presencas (
@@ -88,11 +89,12 @@ export function criarServidor(options = {}) {
 
       // Seed initial inscricoes
       db.run('DELETE FROM inscricoes');
-      db.run(`INSERT INTO inscricoes (id, atividadeId, participanteId, status) VALUES (?, ?, ?, ?)`, [
+      db.run(`INSERT INTO inscricoes (id, atividadeId, participanteId, status, criadaEm) VALUES (?, ?, ?, ?, ?)`, [
         'ins_1',
         'atv_1a2b3c4d',
         'p-carla',
-        'confirmada'
+        'confirmada',
+        '2026-10-13T09:00:00-03:00'
       ]);
 
       // Seed initial encontros (including enc_5e6f7a8b for testing)
@@ -129,6 +131,35 @@ export function criarServidor(options = {}) {
     res.json({ agora: currentClock });
   });
 
+  app.put('/_teste/atividades/:id', (req, res) => {
+    const { vagas } = req.body || {};
+    if (vagas !== undefined) {
+      db.run('UPDATE atividades SET vagas = ? WHERE id = ?', [vagas, req.params.id], () => {
+        res.status(204).send();
+      });
+    } else {
+      res.status(204).send();
+    }
+  });
+
+  app.post('/_teste/atividades', (req, res) => {
+    const { id, titulo, tipo, salaId, vagas } = req.body;
+    db.run('INSERT INTO atividades (id, titulo, tipo, salaId, vagas) VALUES (?, ?, ?, ?, ?)', [
+      id, titulo, tipo, salaId, vagas
+    ], () => {
+      res.status(201).json({ id });
+    });
+  });
+
+  app.post('/_teste/encontros', (req, res) => {
+    const { id, atividadeId, inicio, fim } = req.body;
+    db.run('INSERT INTO encontros (id, atividadeId, inicio, fim) VALUES (?, ?, ?, ?)', [
+      id, atividadeId, inicio, fim
+    ], () => {
+      res.status(201).json({ id });
+    });
+  });
+
   // Auth middleware
   app.use((req, res, next) => {
     if (req.path.startsWith('/_teste/') || req.path.startsWith('/certificados/')) {
@@ -144,6 +175,144 @@ export function criarServidor(options = {}) {
       }
       req.usuario = row;
       next();
+    });
+  });
+
+  // POST /atividades/:id/inscricoes
+  app.post('/atividades/:id/inscricoes', (req, res) => {
+    if (req.usuario.papel !== 'participante') {
+      return res.status(403).json({ erro: 'SOMENTE_PARTICIPANTE', mensagem: 'Apenas participante' });
+    }
+
+    const atividadeId = req.params.id;
+    db.get('SELECT * FROM atividades WHERE id = ?', [atividadeId], (err, atividade) => {
+      if (err || !atividade) {
+        return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
+      }
+
+      // Check JA_INSCRITO (R3): active inscription in the same activity
+      db.all('SELECT * FROM inscricoes WHERE participanteId = ?', [req.usuario.id], (err, todasInscricoes) => {
+        if (err) {
+          return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+        }
+
+        const ativaNaMesma = todasInscricoes.find(i => i.atividadeId === atividadeId && ['confirmada', 'em_espera', 'convocada'].includes(i.status));
+        if (ativaNaMesma) {
+          return res.status(409).json({ erro: 'JA_INSCRITO', mensagem: 'Participante já inscrito nesta atividade' });
+        }
+
+        // Check CONFLITO_DE_HORARIO (R4) and LIMITE_DE_MINICURSOS (R5)
+        db.all('SELECT * FROM encontros WHERE atividadeId = ?', [atividadeId], (err, encontrosAlvo) => {
+          if (err) {
+            return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+          }
+
+          // Find active inscriptions occupying vaga (confirmada or convocada) in other activities
+          const ocupandoVagaOutras = todasInscricoes.filter(i => ['confirmada', 'convocada'].includes(i.status) && i.atividadeId !== atividadeId);
+
+          // Check minicursos limit (R5)
+          if (atividade.tipo === 'minicurso' && ocupandoVagaOutras.length > 0) {
+            const outrasAtvIds = [...new Set(ocupandoVagaOutras.map(i => i.atividadeId))];
+            db.all(`SELECT * FROM atividades WHERE id IN (${outrasAtvIds.map(() => '?').join(',')})`, outrasAtvIds, (err, outrasAtividades) => {
+              if (err) {
+                return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+              }
+              const minicursosOcupados = outrasAtividades.filter(a => a.tipo === 'minicurso').length;
+              if (minicursosOcupados >= 3) {
+                return res.status(422).json({ erro: 'LIMITE_DE_MINICURSOS', mensagem: 'Limite de minicursos atingido' });
+              }
+              proceedWithConflictsCheck();
+            });
+          } else {
+            proceedWithConflictsCheck();
+          }
+
+          function proceedWithConflictsCheck() {
+            if (ocupandoVagaOutras.length === 0 || encontrosAlvo.length === 0) {
+              return proceedWithCreation();
+            }
+
+            const otherAtvIds = [...new Set(ocupandoVagaOutras.map(i => i.atividadeId))];
+            db.all(`SELECT * FROM encontros WHERE atividadeId IN (${otherAtvIds.map(() => '?').join(',')})`, otherAtvIds, (err, encontrosOutros) => {
+              if (err) {
+                return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+              }
+
+              // Check overlap: inicio1 < fim2 && inicio2 < fim1
+              let hasConflict = false;
+              for (const eAlvo of encontrosAlvo) {
+                for (const eOutro of encontrosOutros) {
+                  const inicio1 = new Date(eAlvo.inicio).getTime();
+                  const fim1 = new Date(eAlvo.fim).getTime();
+                  const inicio2 = new Date(eOutro.inicio).getTime();
+                  const fim2 = new Date(eOutro.fim).getTime();
+                  if (inicio1 < fim2 && inicio2 < fim1) {
+                    hasConflict = true;
+                    break;
+                  }
+                }
+                if (hasConflict) break;
+              }
+
+              if (hasConflict) {
+                return res.status(409).json({ erro: 'CONFLITO_DE_HORARIO', mensagem: 'Conflito de horário com outra atividade' });
+              }
+
+              proceedWithCreation();
+            });
+          }
+
+          function proceedWithCreation() {
+            db.all('SELECT * FROM inscricoes WHERE atividadeId = ?', [atividadeId], (err, inscricoesAtividade) => {
+              if (err) {
+                return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+              }
+
+              const ocupadas = inscricoesAtividade.filter(i => i.status === 'confirmada' || i.status === 'convocada').length;
+              const vagasRestantes = Math.max(0, atividade.vagas - ocupadas);
+              const status = vagasRestantes > 0 ? 'confirmada' : 'em_espera';
+
+              const hex = Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+              const id = `ins_${hex}`;
+              const criadaEm = currentClock;
+
+              db.run('INSERT INTO inscricoes (id, atividadeId, participanteId, status, criadaEm) VALUES (?, ?, ?, ?, ?)', [
+                id, atividadeId, req.usuario.id, status, criadaEm
+              ], (err) => {
+                if (err) {
+                  return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+                }
+
+                if (status === 'em_espera') {
+                  db.all("SELECT id FROM inscricoes WHERE atividadeId = ? AND status = 'em_espera' ORDER BY criadaEm ASC, rowid ASC", [atividadeId], (err, rows) => {
+                    const idx = rows.findIndex(r => r.id === id);
+                    const posicaoNaEspera = idx >= 0 ? idx + 1 : null;
+                    res.status(201).json({
+                      id,
+                      atividadeId,
+                      participanteId: req.usuario.id,
+                      status,
+                      posicaoNaEspera,
+                      convocadaAte: null,
+                      criadaEm
+                    });
+                  });
+                } else {
+                  res.status(201).json({
+                    id,
+                    atividadeId,
+                    participanteId: req.usuario.id,
+                    status,
+                    posicaoNaEspera: null,
+                    convocadaAte: null,
+                    criadaEm
+                  });
+                }
+              });
+            });
+          }
+        });
+      });
     });
   });
 
