@@ -11,13 +11,13 @@ export default function ProgramacaoPage() {
   const [filtroTipo, setFiltroTipo] = useState('');
   const [detalheId, setDetalheId] = useState(null);
 
-  const grouped = agruparPorData(atividades);
-
-  const tipos = ['palestra', 'minicurso'];
-
   const atividadesFiltradas = filtroTipo
     ? atividades.filter((a) => a.tipo === filtroTipo)
     : atividades;
+
+  const grouped = agruparPorData(atividadesFiltradas);
+
+  const tipos = ['palestra', 'minicurso'];
 
   const handleDetalhe = (id) => setDetalheId(id);
 
