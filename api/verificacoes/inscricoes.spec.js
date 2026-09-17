@@ -887,6 +887,183 @@ test('precedência na confirmação: CONVOCACAO_EXPIRADA antes de CONFLITO_DE_HO
   }
 });
 
+test('vaga liberada após o fechamento das inscrições não convoca ninguém e mantém inscrição em_espera', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f5_1', titulo: 'Atv F5 1', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f5_1', atividadeId: 'atv_f5_1', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    // p-elisa enrolls (confirmed)
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    // p-fabio enrolls (in_espera)
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+    assert.equal(inscFabio.status, 'em_espera');
+
+    // Advance clock past closing (30 min before 19:00 -> 18:30:00)
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:31:00-03:00' })
+    });
+
+    // p-elisa cancels after closing
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    // Check p-fabio status remains em_espera
+    const resFabioCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabio = await resFabioCheck.json();
+    assert.equal(bodyFabio.status, 'em_espera');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('reconstrução cronológica: expiração antes do fechamento promove o próximo, mas expiração no/após o fechamento não convoca ninguém (fila congelada)', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f5_2', titulo: 'Atv F5 2', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f5_2', atividadeId: 'atv_f5_2', inicio: '2026-10-19T20:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_2/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_2/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+
+    const resGabriela = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_2/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const inscGabriela = await resGabriela.json();
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T18:00:00-03:00' })
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    await fetch(`http://localhost:${servidor.porta}/_teste/relogio`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agora: '2026-10-19T19:31:00-03:00' })
+    });
+
+    const resFabioCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabio = await resFabioCheck.json();
+    assert.equal(bodyFabio.status, 'expirada');
+
+    const resGabrielaCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscGabriela.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const bodyGabriela = await resGabrielaCheck.json();
+    assert.equal(bodyGabriela.status, 'em_espera');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('fila respeita ordem de inserção com criadaEm idêntico: posições 1 e 2; após promoção da primeira, a segunda assume posição 1', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f5_3', titulo: 'Atv F5 3', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f5_3', atividadeId: 'atv_f5_3', inicio: '2026-10-19T20:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_3/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json();
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_3/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json();
+    assert.equal(inscFabio.status, 'em_espera');
+    assert.equal(inscFabio.posicaoNaEspera, 1);
+
+    const resGabriela = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f5_3/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const inscGabriela = await resGabriela.json();
+    assert.equal(inscGabriela.status, 'em_espera');
+    assert.equal(inscGabriela.posicaoNaEspera, 2);
+
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resGabrielaCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscGabriela.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const bodyGabriela = await resGabrielaCheck.json();
+    assert.equal(bodyGabriela.status, 'em_espera');
+    assert.equal(bodyGabriela.posicaoNaEspera, 1);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
 
 
 
