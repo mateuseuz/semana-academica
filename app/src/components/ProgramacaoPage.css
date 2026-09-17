@@ -1,0 +1,175 @@
+.programacao-page {
+  padding: 1rem 0;
+}
+
+.filtros {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filtros label {
+  font-weight: 600;
+  color: #333;
+}
+
+.filtros select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1rem;
+  background: white;
+}
+
+.total-count {
+  color: #666;
+  margin-bottom: 1rem;
+  font-style: italic;
+}
+
+.dia-grupo {
+  margin-bottom: 2rem;
+}
+
+.dia-titulo {
+  font-size: 1.3rem;
+  color: #1a1a2e;
+  border-bottom: 2px solid #1a1a2e;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.atividades-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.atividade-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: box-shadow 0.2s;
+  cursor: default;
+}
+
+.atividade-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.atividade-card.situacao-cancelada {
+  opacity: 0.6;
+  background: #f9f9f9;
+}
+
+.atividade-card.situacao-em-andamento {
+  border-left: 4px solid #f0ad4e;
+}
+
+.atividade-card.situacao-encerrada {
+  border-left: 4px solid #5cb85c;
+}
+
+.atividade-card.situacao-cancelada {
+  border-left: 4px solid #d9534f;
+}
+
+.atividade-card.situacao-prevista {
+  border-left: 4px solid #337ab7;
+}
+
+.atividade-info {
+  flex: 1;
+  cursor: pointer;
+}
+
+.atividade-info h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: #1a1a2e;
+}
+
+.atividade-meta {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+
+.tipo-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tipo-palestra {
+  background: #e8f4fd;
+  color: #337ab7;
+}
+
+.tipo-minicurso {
+  background: #fef3e2;
+  color: #f0ad4e;
+}
+
+.situacao-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.situacao-prevista {
+  background: #d9edf7;
+  color: #31708f;
+}
+
+.situacao-em-andamento {
+  background: #fcf8e3;
+  color: #8a6d3b;
+}
+
+.situacao-encerrada {
+  background: #dff0d8;
+  color: #3c763d;
+}
+
+.situacao-cancelada {
+  background: #f2dede;
+  color: #a94442;
+}
+
+.atividade-detalhes {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+  flex-wrap: wrap;
+}
+
+.atividade-acoes {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .atividade-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .atividade-acoes {
+    margin-top: 0.75rem;
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

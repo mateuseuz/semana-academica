@@ -1,0 +1,187 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  max-width: 650px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-header h2 {
+  font-size: 1.4rem;
+  color: #1a1a2e;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: #999;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.detalhe-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detalhe-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.detalhe-label {
+  font-weight: 600;
+  color: #555;
+  min-width: 140px;
+}
+
+.encontros-titulo {
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+  color: #1a1a2e;
+}
+
+.encontros-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.encontro-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.encontro-datetime {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.encontro-data {
+  font-weight: 600;
+  color: #333;
+}
+
+.encontro-horario {
+  color: #1a1a2e;
+  font-family: monospace;
+  font-size: 1rem;
+}
+
+.encontro-duracao {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
+}
+
+.detalhe-rodape {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.atv-id {
+  font-size: 0.8rem;
+  color: #999;
+  font-family: monospace;
+}
+
+.tipo-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tipo-palestra {
+  background: #e8f4fd;
+  color: #337ab7;
+}
+
+.tipo-minicurso {
+  background: #fef3e2;
+  color: #f0ad4e;
+}
+
+.situacao-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.situacao-prevista {
+  background: #d9edf7;
+  color: #31708f;
+}
+
+.situacao-em-andamento {
+  background: #fcf8e3;
+  color: #8a6d3b;
+}
+
+.situacao-encerrada {
+  background: #dff0d8;
+  color: #3c763d;
+}
+
+.situacao-cancelada {
+  background: #f2dede;
+  color: #a94442;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
