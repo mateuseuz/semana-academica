@@ -1064,6 +1064,204 @@ test('fila respeita ordem de inserção com criadaEm idêntico: posições 1 e 2
   }
 });
 
+test('organização tentando criar inscrição responde 403 SOMENTE_PARTICIPANTE', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    const res = await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+    assert.equal(res.status, 403);
+    const body = await res.json();
+    assert.equal(body.erro, 'SOMENTE_PARTICIPANTE');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('organização tentando confirmar ou cancelar inscrições responde 403 SOMENTE_PARTICIPANTE', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    // ins_1 belongs to p-carla
+    const resConf = await fetch(`http://localhost:${servidor.porta}/inscricoes/ins_1/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+    assert.equal(resConf.status, 403);
+    const bodyConf = await resConf.json();
+    assert.equal(bodyConf.erro, 'SOMENTE_PARTICIPANTE');
+
+    const resCancel = await fetch(`http://localhost:${servidor.porta}/inscricoes/ins_1/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+    assert.equal(resCancel.status, 403);
+    const bodyCancel = await resCancel.json();
+    assert.equal(bodyCancel.erro, 'SOMENTE_PARTICIPANTE');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('participante lista apenas suas inscrições, organização lista todas e filtro por atividade funciona', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+
+    // p-carla enrolls in atv_1a2b3c4d (seeded by default, but let's enroll p-diego as well)
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_1a2b3c4d/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+
+    // Participant p-carla lists
+    const resCarla = await fetch(`http://localhost:${servidor.porta}/inscricoes`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-carla' }
+    });
+    assert.equal(resCarla.status, 200);
+    const listCarla = await resCarla.json();
+    assert.equal(listCarla.length, 1);
+    assert.equal(listCarla[0].participanteId, 'p-carla');
+
+    // Organizer org-ana lists
+    const resOrg = await fetch(`http://localhost:${servidor.porta}/inscricoes`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+    assert.equal(resOrg.status, 200);
+    const listOrg = await resOrg.json();
+    assert.equal(listOrg.length, 2);
+
+    // Filter by atividadeId
+    const resFilter = await fetch(`http://localhost:${servidor.porta}/inscricoes?atividadeId=atv_1a2b3c4d`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+    assert.equal(resFilter.status, 200);
+    const listFilter = await resFilter.json();
+    assert.equal(listFilter.length, 2);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('participante consultando inscrição alheia por id recebe 404 NAO_ENCONTRADO', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    // ins_1 belongs to p-carla
+    const res = await fetch(`http://localhost:${servidor.porta}/inscricoes/ins_1`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-diego' }
+    });
+    assert.equal(res.status, 404);
+  } finally {
+    await servidor.fechar();
+  }
+});
+
+test('cancelar atividade passa todas inscrições confirmada, convocada e em_espera para cancelada e recusa ações subsequentes', async () => {
+  const servidor = await criarServidor({ porta: 0 });
+  try {
+    await fetch(`http://localhost:${servidor.porta}/_teste/reset`, { method: 'POST' });
+    await fetch(`http://localhost:${servidor.porta}/_teste/atividades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'atv_f6_1', titulo: 'Atv F6 1', tipo: 'palestra', salaId: 'sala-1', vagas: 1 })
+    });
+    await fetch(`http://localhost:${servidor.porta}/_teste/encontros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'enc_f6_1', atividadeId: 'atv_f6_1', inicio: '2026-10-19T19:00:00-03:00', fim: '2026-10-19T22:00:00-03:00' })
+    });
+
+    const resElisa = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f6_1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+    const inscElisa = await resElisa.json(); // confirmada
+
+    const resFabio = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f6_1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const inscFabio = await resFabio.json(); // em_espera
+
+    const resGabriela = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f6_1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const inscGabriela = await resGabriela.json(); // em_espera
+
+    // Cancel Elisa to promote Fabio to convocada
+    await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscElisa.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-elisa' }
+    });
+
+    const resFabioCheck = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabio = await resFabioCheck.json();
+    assert.equal(bodyFabio.status, 'convocada');
+
+    // Now cancel the activity as org-ana
+    await fetch(`http://localhost:${servidor.porta}/atividades/atv_f6_1/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'org-ana' }
+    });
+
+    // Check Fabio and Gabriela status become cancelada
+    const resFabioCancelled = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    const bodyFabioC = await resFabioCancelled.json();
+    assert.equal(bodyFabioC.status, 'cancelada');
+
+    const resGabrielaCancelled = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscGabriela.id}`, {
+      method: 'GET',
+      headers: { 'X-Usuario': 'p-gabriela' }
+    });
+    const bodyGabrielaC = await resGabrielaCancelled.json();
+    assert.equal(bodyGabrielaC.status, 'cancelada');
+
+    // Try to confirm Fabio -> 422 SEM_CONVOCACAO
+    const resConf = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}/confirmacao`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resConf.status, 422);
+    const bodyConf = await resConf.json();
+    assert.equal(bodyConf.erro, 'SEM_CONVOCACAO');
+
+    // Try to cancel Fabio again -> 422 INSCRICAO_INATIVA
+    const resCancelAgain = await fetch(`http://localhost:${servidor.porta}/inscricoes/${inscFabio.id}/cancelamento`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-fabio' }
+    });
+    assert.equal(resCancelAgain.status, 422);
+    const bodyCancel = await resCancelAgain.json();
+    assert.equal(bodyCancel.erro, 'INSCRICAO_INATIVA');
+
+    // Try new inscription -> 422 ATIVIDADE_CANCELADA
+    const resNew = await fetch(`http://localhost:${servidor.porta}/atividades/atv_f6_1/inscricoes`, {
+      method: 'POST',
+      headers: { 'X-Usuario': 'p-heitor' }
+    });
+    assert.equal(resNew.status, 422);
+    const bodyNew = await resNew.json();
+    assert.equal(bodyNew.erro, 'ATIVIDADE_CANCELADA');
+  } finally {
+    await servidor.fechar();
+  }
+});
+
 
 
 
