@@ -1,11 +1,13 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const DEFAULT_USER = 'org-ana';
 
+let currentDefaultUser = DEFAULT_USER;
+
 export function setDefaultUser(user) {
-  // Allows tests to override the default user
+  currentDefaultUser = user;
 }
 
-async function request(method, path, body = null, usuario = DEFAULT_USER) {
+async function request(method, path, body = null, usuario = currentDefaultUser) {
   const headers = { 'Content-Type': 'application/json' };
   if (usuario) headers['X-Usuario'] = usuario;
 

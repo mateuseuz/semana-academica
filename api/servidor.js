@@ -1,8 +1,10 @@
 import express from 'express';
+import cors from 'cors';
 import sqlite3 from 'sqlite3';
 
 export function criarServidor(options = {}) {
   const app = express();
+  app.use(cors());
   app.use(express.json());
 
   let db = new sqlite3.Database(':memory:');
@@ -129,9 +131,43 @@ export function criarServidor(options = {}) {
     res.json({ agora: currentClock });
   });
 
+  // Rotas públicas (sem autenticação) - GET /salas e GET /atividades
+  app.get('/salas', (req, res) => {
+    const salas = [
+      { id: 'auditorio', nome: 'Auditório Central', capacidade: 200 },
+      { id: 'sala-101', nome: 'Sala 101', capacidade: 40 },
+      { id: 'sala-102', nome: 'Sala 102', capacidade: 40 },
+      { id: 'lab-3', nome: 'Laboratório 3', capacidade: 20 }
+    ];
+    res.json(salas);
+  });
+
+  app.get('/atividades', (req, res) => {
+    const atividades = [];
+    db.all('SELECT * FROM atividades', (err, rows) => {
+      if (err) return res.status(500).json({ erro: 'ERRO_INTERNO', mensagem: err.message });
+      res.json(rows);
+    });
+  });
+
+  app.get('/atividades/:id', (req, res) => {
+    db.get('SELECT * FROM atividades WHERE id = ?', [req.params.id], (err, row) => {
+      if (err || !row) return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
+      res.json(row);
+    });
+  });
+
   // Auth middleware
   app.use((req, res, next) => {
     if (req.path.startsWith('/_teste/') || req.path.startsWith('/certificados/')) {
+      return next();
+    }
+    // Isentar rotas públicas de autenticação
+    if (req.path === '/salas' || req.path === '/atividades' || req.path.startsWith('/atividades/')) {
+      return next();
+    }
+    // Tratamento de preflight OPTIONS
+    if (req.method === 'OPTIONS') {
       return next();
     }
     const usuarioId = req.headers['x-usuario'];
@@ -144,6 +180,44 @@ export function criarServidor(options = {}) {
       }
       req.usuario = row;
       next();
+    });
+  });
+
+  // POST /atividades
+  app.post('/atividades', (req, res) => {
+    const { titulo, tipo, salaId, vagas, encontros } = req.body || {};
+    const id = `atv_${Date.now().toString(36)}`;
+    const novaAtividade = { id, titulo, tipo, salaId, vagas, encontros, cargaHorariaMinutos: 0, situacao: 'prevista', ocupadas: 0, vagasRestantes: vagas, emEspera: 0 };
+    db.run('INSERT INTO atividades (id, titulo, tipo, salaId, vagas) VALUES (?, ?, ?, ?, ?)', [id, titulo, tipo, salaId, vagas], function(err) {
+      if (err) return res.status(422).json({ erro: 'DADOS_INVALIDOS', mensagem: err.message });
+      res.status(201).json(novaAtividade);
+    });
+  });
+
+  // PATCH /atividades/:id
+  app.patch('/atividades/:id', (req, res) => {
+    const { titulo, tipo, salaId, vagas } = req.body || {};
+    db.get('SELECT * FROM atividades WHERE id = ?', [req.params.id], (err, row) => {
+      if (err || !row) return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
+      db.run('UPDATE atividades SET titulo = COALESCE(?, titulo), tipo = COALESCE(?, tipo), salaId = COALESCE(?, salaId), vagas = COALESCE(?, vagas) WHERE id = ?', [titulo, tipo, salaId, vagas, req.params.id], function(err) {
+        if (err) return res.status(422).json({ erro: 'DADOS_INVALIDOS', mensagem: err.message });
+        db.get('SELECT * FROM atividades WHERE id = ?', [req.params.id], (err, updated) => {
+          res.json(updated);
+        });
+      });
+    });
+  });
+
+  // POST /atividades/:id/cancelamento
+  app.post('/atividades/:id/cancelamento', (req, res) => {
+    db.get('SELECT * FROM atividades WHERE id = ?', [req.params.id], (err, row) => {
+      if (err || !row) return res.status(404).json({ erro: 'NAO_ENCONTRADO', mensagem: 'Atividade não encontrada' });
+      db.run('UPDATE atividades SET situacao = ? WHERE id = ?', ['cancelada', req.params.id], (err) => {
+        if (err) return res.status(422).json({ erro: 'DADOS_INVALIDOS', mensagem: err.message });
+        db.get('SELECT * FROM atividades WHERE id = ?', [req.params.id], (err, updated) => {
+          res.json(updated);
+        });
+      });
     });
   });
 
