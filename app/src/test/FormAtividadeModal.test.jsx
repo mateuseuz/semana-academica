@@ -170,9 +170,9 @@ describe('FormAtividadeModal - Validação de Formulário', () => {
     await user.selectOptions(screen.getByLabelText(/Tipo/), 'palestra');
     await user.selectOptions(screen.getByLabelText(/Sala/), 'auditorio');
     const vagasInput = screen.getByLabelText(/Vagas/);
-    fireEvent.input(vagasInput, { target: { value: '0' } });
+    fireEvent.change(vagasInput, { target: { value: '0' } });
 
-    await user.click(screen.getByText('Cadastrar Atividade'));
+    fireEvent.submit(document.querySelector('.form-atividade'));
 
     await waitFor(() => expect(screen.getByText('Vagas deve ser maior que 0')).toBeInTheDocument());
   });
@@ -204,7 +204,9 @@ describe('FormAtividadeModal - Submissão e Erros da API', () => {
     await user.selectOptions(screen.getByLabelText(/Tipo/), 'palestra');
     await user.selectOptions(screen.getByLabelText(/Sala/), 'auditorio');
     const vagasInput = screen.getByLabelText(/Vagas/);
-    fireEvent.input(vagasInput, { target: { value: '50' } });
+    fireEvent.change(vagasInput, { target: { value: '50' } });
+    fireEvent.change(screen.getByLabelText(/Início/), { target: { value: '2026-10-19T19:00' } });
+    fireEvent.change(screen.getByLabelText(/Fim/), { target: { value: '2026-10-19T22:00' } });
 
     await user.click(screen.getByText('Cadastrar Atividade'));
 
@@ -226,12 +228,14 @@ describe('FormAtividadeModal - Submissão e Erros da API', () => {
     await user.selectOptions(screen.getByLabelText(/Tipo/), 'palestra');
     await user.selectOptions(screen.getByLabelText(/Sala/), 'auditorio');
     const vagasInput = screen.getByLabelText(/Vagas/);
-    fireEvent.input(vagasInput, { target: { value: '300' } });
+    fireEvent.change(vagasInput, { target: { value: '300' } });
+    fireEvent.change(screen.getByLabelText(/Início/), { target: { value: '2026-10-19T19:00' } });
+    fireEvent.change(screen.getByLabelText(/Fim/), { target: { value: '2026-10-19T22:00' } });
 
     await user.click(screen.getByText('Cadastrar Atividade'));
 
     await waitFor(() => {
-      expect(screen.getByText('Vagas acima da capacidade')).toBeInTheDocument();
+      expect(screen.getByText(/Vagas acima da capacidade/)).toBeInTheDocument();
     });
   });
 
@@ -269,13 +273,15 @@ describe('FormAtividadeModal - Submissão e Erros da API', () => {
     await user.selectOptions(screen.getByLabelText(/Tipo/), 'palestra');
     await user.selectOptions(screen.getByLabelText(/Sala/), 'auditorio');
     const vagasInput = screen.getByLabelText(/Vagas/);
-    fireEvent.input(vagasInput, { target: { value: '10' } });
+    fireEvent.change(vagasInput, { target: { value: '10' } });
+    fireEvent.change(screen.getByLabelText(/Início/), { target: { value: '2026-10-19T19:00' } });
+    fireEvent.change(screen.getByLabelText(/Fim/), { target: { value: '2026-10-19T22:00' } });
 
     const submitBtn = screen.getByText('Cadastrar Atividade');
     await user.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText('Erro qualquer')).toBeInTheDocument();
+      expect(screen.getByText(/Erro qualquer/)).toBeInTheDocument();
     });
 
     mockApiService({

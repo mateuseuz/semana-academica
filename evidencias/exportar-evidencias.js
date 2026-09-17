@@ -16,12 +16,14 @@
 // Os comandos listados em "testes" no projeto.json também contam como execução de teste.
 // Sem dependências; Node 18 ou mais novo.
 
-'use strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const args = process.argv.slice(2);
 const valorDe = (nome) => {
@@ -131,16 +133,23 @@ function exportar() {
   }
 
   let exportadas = 0;
+  let falhas = 0;
   for (const item of lista) {
     const destino = path.join(pasta, `${item.id}.json`);
     if (lerJson(destino)?.info?.time?.updated === item.updated) continue;
     console.log(`exportando ${item.id}  ${item.title}`);
-    const sessao = compactar(extrairJson(executar('opencode', ['export', item.id]), '{', '}'));
-    fs.writeFileSync(destino, JSON.stringify(sessao, null, 1));
-    exportadas++;
+    try {
+      const sessao = compactar(extrairJson(executar('opencode', ['session', 'export', item.id]), '{', '}'));
+      fs.writeFileSync(destino, JSON.stringify(sessao, null, 1));
+      exportadas++;
+    } catch (erro) {
+      falhas++;
+      console.error(`  falhou ao exportar ${item.id}: ${erro.message}`);
+    }
   }
   resumirPasta(pasta, aluno);
-  console.log(`\n${exportadas} sessão(ões) exportada(s), ${lista.length - exportadas} sem mudança.`);
+  const totalComFalhas = exportadas + falhas;
+  console.log(`\n${exportadas} sessão(ões) exportada(s), ${lista.length - totalComFalhas} sem mudança${falhas ? `, ${falhas} com falha` : ''}.`);
   console.log(`Índice: ${path.relative(process.cwd(), path.join(pasta, 'INDICE.md'))}`);
 }
 
@@ -607,7 +616,8 @@ function resumirTudo() {
   console.log(`${alunos.length} aluno(s). Resumo em ${destino}`);
 }
 
-if (require.main === module) {
+const rodandoDireto = process.argv[1] === __filename;
+if (rodandoDireto) {
   if (args.includes('--ajuda') || args.includes('-h')) {
     const linhas = fs.readFileSync(__filename, 'utf8').split('\n').slice(1);
     const fim = linhas.findIndex((l) => !l.startsWith('//'));
@@ -617,6 +627,6 @@ if (require.main === module) {
   } else {
     exportar();
   }
-} else {
-  module.exports = { placar, classificar, ehComandoDeTeste, maiorTrechoCopiado, analisar };
 }
+
+export { placar, classificar, ehComandoDeTeste, maiorTrechoCopiado, analisar };

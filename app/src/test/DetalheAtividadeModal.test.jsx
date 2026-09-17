@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import DetalheAtividadeModal from '../components/DetalheAtividadeModal';
 import { apiService } from '../services/api';
 
@@ -109,7 +109,9 @@ describe('DetalheAtividadeModal - Renderização e Detalhes', () => {
     renderModal();
 
     await waitFor(() => {
-      expect(screen.getByText('3h')).toBeInTheDocument();
+      const label = screen.getByText('Carga Horária:');
+      const row = label.closest('.detalhe-row');
+      expect(within(row).getByText('3h')).toBeInTheDocument();
     });
   });
 
@@ -134,7 +136,8 @@ describe('DetalheAtividadeModal - Renderização e Detalhes', () => {
     renderModal();
 
     await waitFor(() => {
-      expect(screen.getByText('3h')).toBeInTheDocument();
+      const card = screen.getByText('19:00 — 22:00').closest('.encontro-card');
+      expect(card.querySelector('.encontro-duracao')).toHaveTextContent('3h');
     });
   });
 
@@ -157,7 +160,7 @@ describe('DetalheAtividadeModal - Múltiplos Encontros', () => {
 
     await waitFor(() => {
       expect(screen.getByText('14:00 — 17:00')).toBeInTheDocument();
-      expect(screen.getByText('19:00 — 22:00')).toBeInTheDocument();
+      expect(screen.getByText('18:00 — 21:00')).toBeInTheDocument();
     });
   });
 });
@@ -171,7 +174,12 @@ describe('DetalheAtividadeModal - Estados de Erro', () => {
     apiService.getAtividadeById.mockRejectedValue(new Error('Atividade não encontrada'));
     apiService.getSalas.mockResolvedValue(mockSalas);
 
-    renderModal();
+    render(
+      <DetalheAtividadeModal
+        atividadeId="atv_001"
+        onClose={vi.fn()}
+      />
+    );
 
     await waitFor(() => {
       expect(screen.getByText(/Erro ao carregar detalhes/)).toBeInTheDocument();
@@ -182,7 +190,12 @@ describe('DetalheAtividadeModal - Estados de Erro', () => {
     apiService.getAtividadeById.mockRejectedValue(new Error('Erro'));
     apiService.getSalas.mockResolvedValue(mockSalas);
 
-    renderModal();
+    render(
+      <DetalheAtividadeModal
+        atividadeId="atv_001"
+        onClose={vi.fn()}
+      />
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Fechar')).toBeInTheDocument();

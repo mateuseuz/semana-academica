@@ -143,10 +143,10 @@ export default function FormAtividadeModal({ onSuccess, onClose }) {
     e.preventDefault();
     setApiError(null);
     setApiCode(null);
-    setSubmitted(true);
 
     if (!validateForm()) return;
 
+    setSubmitted(true);
     setLoading(true);
     try {
       const encontros = formData.encontros.map((e) => ({
