@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 
@@ -27,8 +26,8 @@ function calcularSituacao(atv) {
   const primeiroInicio = new Date(atv.encontros[0]?.inicio);
   const ultimoFim = new Date(atv.encontros[atv.encontros.length - 1]?.fim);
   if (agora < primeiroInicio) return 'prevista';
-  if (agora >= primeiroInicio && agora < ultimoFim) return 'em_andamento';
-  if (agora >= ultimoFim) return 'encerrada';
+  if (agora >= primeiroInicio && agora <= ultimoFim) return 'em_andamento';
+  if (agora > ultimoFim) return 'encerrada';
   return 'prevista';
 }
 
@@ -269,10 +268,3 @@ if (isMain) {
   app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
 }
 
-=======
-import { criarServidor } from './servidor.js';
-
-const porta = process.env.PORT || 3000;
-criarServidor({ porta });
-console.log(`Servidor rodando na porta ${porta}`);
->>>>>>> 866111a2c00369bbb519969f849de703e5ad95c7
