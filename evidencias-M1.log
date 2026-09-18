@@ -1,0 +1,146 @@
+
+> semana-academica@1.0.0 test
+> node --test verificacoes/*.spec.js
+
+TAP version 13
+# Subtest: R2 - recusa minicurso com 1 encontro
+ok 1 - R2 - recusa minicurso com 1 encontro
+  ---
+  duration_ms: 53.8573
+  type: 'test'
+  ...
+# Subtest: R2 - recusa palestra com 2 encontros
+ok 2 - R2 - recusa palestra com 2 encontros
+  ---
+  duration_ms: 7.227
+  type: 'test'
+  ...
+# Subtest: R3 - recusa encontro com inicio >= fim
+ok 3 - R3 - recusa encontro com inicio >= fim
+  ---
+  duration_ms: 4.7807
+  type: 'test'
+  ...
+# Subtest: R3 - recusa encontro fora do periodo do evento
+ok 4 - R3 - recusa encontro fora do periodo do evento
+  ---
+  duration_ms: 3.6664
+  type: 'test'
+  ...
+# Subtest: R3 - recusa encontro com duracao > 4h
+ok 5 - R3 - recusa encontro com duracao > 4h
+  ---
+  duration_ms: 8.2842
+  type: 'test'
+  ...
+# Subtest: R3 - recusa encontros sobrepostos da mesma atividade
+ok 6 - R3 - recusa encontros sobrepostos da mesma atividade
+  ---
+  duration_ms: 3.5772
+  type: 'test'
+  ...
+# Subtest: R4 - recusa vagas > capacidade da sala
+ok 7 - R4 - recusa vagas > capacidade da sala
+  ---
+  duration_ms: 2.9429
+  type: 'test'
+  ...
+# Subtest: R4 - recusa vagas < 1
+ok 8 - R4 - recusa vagas < 1
+  ---
+  duration_ms: 5.3308
+  type: 'test'
+  ...
+# Subtest: R5 - recusa conflito de sala (10 min entre encontros)
+ok 9 - R5 - recusa conflito de sala (10 min entre encontros)
+  ---
+  duration_ms: 9.9414
+  type: 'test'
+  ...
+# Subtest: R5 - aceita dois encontros na mesma sala com 20 min de intervalo
+ok 10 - R5 - aceita dois encontros na mesma sala com 20 min de intervalo
+  ---
+  duration_ms: 4.7798
+  type: 'test'
+  ...
+# Subtest: R16 - GET /atividades?tipo=invalido retorna lista vazia
+ok 11 - R16 - GET /atividades?tipo=invalido retorna lista vazia
+  ---
+  duration_ms: 5.5045
+  type: 'test'
+  ...
+# Subtest: R16 - GET /atividades?tipo=palestra retorna apenas palestras
+ok 12 - R16 - GET /atividades?tipo=palestra retorna apenas palestras
+  ---
+  duration_ms: 3.8406
+  type: 'test'
+  ...
+# Subtest: R15 - GET /atividades?dia=2026-10-19 retorna atividades com encontro naquele dia
+ok 13 - R15 - GET /atividades?dia=2026-10-19 retorna atividades com encontro naquele dia
+  ---
+  duration_ms: 3.631
+  type: 'test'
+  ...
+# Subtest: F2 - GET /atividades/:id retorna atividade criada
+ok 14 - F2 - GET /atividades/:id retorna atividade criada
+  ---
+  duration_ms: 3.5392
+  type: 'test'
+  ...
+# Subtest: F2 - GET /atividades/:id nao existente retorna 404
+ok 15 - F2 - GET /atividades/:id nao existente retorna 404
+  ---
+  duration_ms: 3.4726
+  type: 'test'
+  ...
+# Subtest: F3 - PATCH altera titulo e vagas com sucesso
+ok 16 - F3 - PATCH altera titulo e vagas com sucesso
+  ---
+  duration_ms: 4.3521
+  type: 'test'
+  ...
+# Subtest: F3 - PATCH recusa alteracao de campo nao editavel (tipo)
+ok 17 - F3 - PATCH recusa alteracao de campo nao editavel (tipo)
+  ---
+  duration_ms: 3.1014
+  type: 'test'
+  ...
+# Subtest: F3 - PATCH recusa alteracao de campo nao editavel (salaId)
+ok 18 - F3 - PATCH recusa alteracao de campo nao editavel (salaId)
+  ---
+  duration_ms: 3.8796
+  type: 'test'
+  ...
+# Subtest: F3 - PATCH recusa aumento de vagas acima da capacidade
+ok 19 - F3 - PATCH recusa aumento de vagas acima da capacidade
+  ---
+  duration_ms: 3.5208
+  type: 'test'
+  ...
+# Subtest: F4 - Cancela atividade prevista com sucesso
+ok 20 - F4 - Cancela atividade prevista com sucesso
+  ---
+  duration_ms: 3.0706
+  type: 'test'
+  ...
+# Subtest: F4 - Cancela atividade ja cancelada gera erro
+ok 21 - F4 - Cancela atividade ja cancelada gera erro
+  ---
+  duration_ms: 3.231
+  type: 'test'
+  ...
+# Subtest: F4 - Cancela atividade em_andamento gera erro
+ok 22 - F4 - Cancela atividade em_andamento gera erro
+  ---
+  duration_ms: 3.3591
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 363.8547

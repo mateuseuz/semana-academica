@@ -4,9 +4,10 @@
   "type": "module",
   "main": "servidor.js",
   "scripts": {
-    "start": "node servidor.js"
+    "start": "node server.js"
   },
   "dependencies": {
+    "cors": "^2.8.6",
     "express": "^4.19.2",
     "sqlite3": "^5.1.7"
   }
