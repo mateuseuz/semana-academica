@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { InscricoesTela } from './components/InscricoesTela';
 
 export default function ParticipanteApp() {
   const [encontroId, setEncontroId] = useState('enc_5e6f7a8b');
   const [usuarioId, setUsuarioId] = useState('p-carla');
+  const [view, setView] = useState('presenca'); // 'presenca' | 'inscricoes'
   const [codigo, setCodigo] = useState('');
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState(null);
@@ -182,7 +184,10 @@ export default function ParticipanteApp() {
       <header>
         <div>
           <h1>Semana Acadêmica — M3 Participante</h1>
-          <p style={{ margin: 0, color: '#64748b' }}>Leitura de QR Code e Registro de Presença</p>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+            <button onClick={() => setView('presenca')} className={view === 'presenca' ? 'primary' : ''}>Presença</button>
+            <button onClick={() => setView('inscricoes')} className={view === 'inscricoes' ? 'primary' : ''}>Inscrições</button>
+          </div>
         </div>
         <div>
           <a href="/index.html" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}>
@@ -191,77 +196,81 @@ export default function ParticipanteApp() {
         </div>
       </header>
 
-      <div className="card">
-        <h2>Registro de Presença</h2>
-        <p>Aponte a câmera do celular para escanear o QR Code exibido pelo palestrante ou digite o código manualmente.</p>
+      {view === 'presenca' ? (
+        <div className="card">
+          <h2>Registro de Presença</h2>
+          <p>Aponte a câmera do celular para escanear o QR Code exibido pelo palestrante ou digite o código manualmente.</p>
 
-        <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
-          <span className={`status-badge ${isOnline ? 'status-online' : 'status-offline'}`}>
-            {isOnline ? '🟢 Conectado (Online)' : '🔴 Desconectado (Offline)'}
-          </span>
-          {offlineQueue.length > 0 && (
-            <span style={{ fontWeight: 600, color: '#d97706', fontSize: '0.875rem' }}>
-              ⚠️ {offlineQueue.length} pendente(s) de sincronização.
+          <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+            <span className={`status-badge ${isOnline ? 'status-online' : 'status-offline'}`}>
+              {isOnline ? '🟢 Conectado (Online)' : '🔴 Desconectado (Offline)'}
             </span>
+            {offlineQueue.length > 0 && (
+              <span style={{ fontWeight: 600, color: '#d97706', fontSize: '0.875rem' }}>
+                ⚠️ {offlineQueue.length} pendente(s) de sincronização.
+              </span>
+            )}
+          </div>
+
+          <div className="form-grid" style={{ marginBottom: '1rem' }}>
+            <div className="form-group">
+              <label>ID do Encontro:</label>
+              <input 
+                type="text" 
+                value={encontroId} 
+                onChange={(e) => setEncontroId(e.target.value)} 
+              />
+            </div>
+            <div className="form-group">
+              <label>Participante (X-Usuario):</label>
+              <select value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}>
+                <option value="p-carla">Carla Mendes Souza (p-carla - Inscrita)</option>
+                <option value="p-diego">Diego Alves (p-diego - Não inscrito)</option>
+                <option value="p-elisa">Elisa Fernandes (p-elisa)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '1rem' }}>
+            <button 
+              type="button" 
+              onClick={() => setScannerAtivo(!scannerAtivo)} 
+              style={{ backgroundColor: scannerAtivo ? '#dc2626' : '#0284c7', color: 'white' }}
+            >
+              {scannerAtivo ? '✕ Fechar Câmera / Leitor' : '📷 Ler QR Code com a Câmera'}
+            </button>
+          </div>
+
+          {scannerAtivo && (
+            <div style={{ margin: '1rem 0', padding: '1rem', border: '2px dashed #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
+              <div id="reader" style={{ width: '100%' }}></div>
+              <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.75rem', textAlign: 'center' }}>
+                Centralize o QR Code na câmera do seu smartphone ou computador.
+              </p>
+            </div>
           )}
+
+          <form onSubmit={handleSubmeter}>
+            <div className="form-group">
+              <label>Código do Encontro (6 caracteres):</label>
+              <input 
+                type="text" 
+                placeholder="Ex: K7M2QX" 
+                value={codigo} 
+                maxLength={6}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase())} 
+                style={{ fontSize: '1.5rem', fontFamily: 'monospace', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '0.2em' }}
+              />
+            </div>
+
+            <button type="submit" className="primary" disabled={loading}>
+              {loading ? 'Enviando...' : (isOnline ? 'Confirmar Presença' : 'Registrar Offline')}
+            </button>
+          </form>
         </div>
-
-        <div className="form-grid" style={{ marginBottom: '1rem' }}>
-          <div className="form-group">
-            <label>ID do Encontro:</label>
-            <input 
-              type="text" 
-              value={encontroId} 
-              onChange={(e) => setEncontroId(e.target.value)} 
-            />
-          </div>
-          <div className="form-group">
-            <label>Participante (X-Usuario):</label>
-            <select value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}>
-              <option value="p-carla">Carla Mendes Souza (p-carla - Inscrita)</option>
-              <option value="p-diego">Diego Alves (p-diego - Não inscrito)</option>
-              <option value="p-elisa">Elisa Fernandes (p-elisa)</option>
-            </select>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: '1rem' }}>
-          <button 
-            type="button" 
-            onClick={() => setScannerAtivo(!scannerAtivo)} 
-            style={{ backgroundColor: scannerAtivo ? '#dc2626' : '#0284c7', color: 'white' }}
-          >
-            {scannerAtivo ? '✕ Fechar Câmera / Leitor' : '📷 Ler QR Code com a Câmera'}
-          </button>
-        </div>
-
-        {scannerAtivo && (
-          <div style={{ margin: '1rem 0', padding: '1rem', border: '2px dashed #cbd5e1', borderRadius: '8px', background: '#f8fafc' }}>
-            <div id="reader" style={{ width: '100%' }}></div>
-            <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.75rem', textAlign: 'center' }}>
-              Centralize o QR Code na câmera do seu smartphone ou computador.
-            </p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmeter}>
-          <div className="form-group">
-            <label>Código do Encontro (6 caracteres):</label>
-            <input 
-              type="text" 
-              placeholder="Ex: K7M2QX" 
-              value={codigo} 
-              maxLength={6}
-              onChange={(e) => setCodigo(e.target.value.toUpperCase())} 
-              style={{ fontSize: '1.5rem', fontFamily: 'monospace', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '0.2em' }}
-            />
-          </div>
-
-          <button type="submit" className="primary" disabled={loading}>
-            {loading ? 'Enviando...' : (isOnline ? 'Confirmar Presença' : 'Registrar Offline')}
-          </button>
-        </form>
-      </div>
+      ) : (
+        <InscricoesTela usuarioId={usuarioId} />
+      )}
 
       {mensagem && (
         <div className="alert alert-success">

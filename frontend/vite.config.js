@@ -6,6 +6,16 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      '^/atividades': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path
+      },
+      '^/inscricoes': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => path
+      },
       '/encontros': {
         target: 'http://localhost:3000',
         changeOrigin: true
