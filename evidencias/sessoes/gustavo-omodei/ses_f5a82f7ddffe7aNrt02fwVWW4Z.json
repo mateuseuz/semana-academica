@@ -1,0 +1,119 @@
+{
+ "info": {
+  "id": "ses_f5a82f7ddffe7aNrt02fwVWW4Z",
+  "slug": "proud-pixel",
+  "projectID": "1820574943c9136f9f53f5a3fdca63c697f08810",
+  "directory": "C:\\semana-academica",
+  "path": "",
+  "title": "New session - 2026-09-15T14:33:49.858Z",
+  "agent": "build",
+  "model": {
+   "id": "gemini-2.5-computer-use-preview-10-2025",
+   "providerID": "google"
+  },
+  "version": "1.18.31",
+  "summary": {
+   "additions": 0,
+   "deletions": 0,
+   "files": 0
+  },
+  "cost": 0,
+  "tokens": {
+   "input": 0,
+   "output": 0,
+   "reasoning": 0,
+   "cache": {
+    "read": 0,
+    "write": 0
+   }
+  },
+  "time": {
+   "created": 1789482829858,
+   "updated": 1789482831756
+  }
+ },
+ "messages": [
+  {
+   "info": {
+    "role": "user",
+    "time": {
+     "created": 1789482829904
+    },
+    "agent": "build",
+    "model": {
+     "providerID": "google",
+     "modelID": "gemini-2.5-computer-use-preview-10-2025"
+    },
+    "summary": {
+     "diffs": []
+    },
+    "id": "msg_0a57d0850001VTNXH2ptmQyDSq",
+    "sessionID": "ses_f5a82f7ddffe7aNrt02fwVWW4Z"
+   },
+   "parts": [
+    {
+     "type": "text",
+     "text": "Use a skill grilling.\n\nVamos decidir o módulo M3 (presença por QR) da Semana Acadêmica\nantes de qualquer código.\n\nLeia o contrato-api.md.\n\nEu não tenho as regras de cabeça: quando eu responder\n\"consultar requisitos\", registre a pergunta como pendente.\n\nMantenha tudo em entrevistas/M3-presenca.md.\n\nFaça perguntas de regra de negócio, incluindo casos de borda\nrelacionados a QR Code, expiração, presença offline,\nsincronização posterior, duplicidade e inscrição do participante.\n\nFaça uma pergunta por vez e aguarde minha resposta antes de\nfazer a próxima.\n\nNão escreva código. ",
+     "id": "prt_0a57d0853001x81QX7mNBWTgqC",
+     "sessionID": "ses_f5a82f7ddffe7aNrt02fwVWW4Z",
+     "messageID": "msg_0a57d0850001VTNXH2ptmQyDSq"
+    }
+   ]
+  },
+  {
+   "info": {
+    "parentID": "msg_0a57d0850001VTNXH2ptmQyDSq",
+    "role": "assistant",
+    "mode": "build",
+    "agent": "build",
+    "path": {
+     "cwd": "C:\\semana-academica",
+     "root": "C:\\semana-academica"
+    },
+    "cost": 0,
+    "tokens": {
+     "input": 0,
+     "output": 0,
+     "reasoning": 0,
+     "cache": {
+      "read": 0,
+      "write": 0
+     }
+    },
+    "modelID": "gemini-2.5-computer-use-preview-10-2025",
+    "providerID": "google",
+    "time": {
+     "created": 1789482829938,
+     "completed": 1789482906016
+    },
+    "error": {
+     "name": "APIError",
+     "data": {
+      "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: computer-use-preview\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: computer-use-preview\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: computer-use-preview\nPlease retry in 54.303261139s.",
+      "statusCode": 429,
+      "isRetryable": true,
+      "responseHeaders": {
+       "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+       "content-length": "2300",
+       "content-type": "text/event-stream",
+       "date": "Tue, 15 Sep 2026 14:35:05 GMT",
+       "server": "scaffolding on HTTPServer2",
+       "server-timing": "gfet4t7; dur=414",
+       "vary": "Origin, X-Origin, Referer",
+       "x-content-type-options": "nosniff",
+       "x-frame-options": "SAMEORIGIN",
+       "x-xss-protection": "0"
+      },
+      "responseBody": "{\n  \"error\": {\n    \"code\": 429,\n    \"message\": \"You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: computer-use-preview\\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0, model: computer-use-preview\\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 0, model: computer-use-preview\\nPlease retry in 54.303261139s.\",\n    \"status\": \"RESOURCE_EXHAUSTED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.Help\",\n        \"links\": [\n          {\n            \"description\": \"Learn more about Gemini API quotas\",\n            \"url\": \"https://ai.google.dev/gemini-api/docs/rate-limits\"\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.QuotaFailure\",\n        \"violations\": [\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\n            \"quotaId\": \"GenerateRequestsPerDayPerProjectPerModel-FreeTier\",\n            \"quotaDimensions\": {\n              \"location\": \"global\",\n              \"model\": \"computer-use-preview\"\n            }\n          },\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_requests\",\n            \"quotaId\": \"GenerateRequestsPerMinutePerProjectPerModel-FreeTier\",\n            \"quotaDimensions\": {\n              \"location\": \"global\",\n              \"model\": \"computer-use-preview\"\n            }\n          },\n          {\n            \"quotaMetric\": \"generativelanguage.googleapis.com/generate_content_free_tier_input_token_count\",\n            \"quotaId\": \"GenerateContentInputTokensPerModelPerMinute-FreeTier\",\n            \"quotaDimensions\": {\n              \"location\": \"global\",\n              \"model\": \"computer-use-preview\"\n            }\n          }\n        ]\n      },\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.RetryInfo\",\n        \"retryDelay\": \"54s\"\n      }\n    ]\n  }\n}\n",
+      "metadata": {
+       "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-computer-use-preview-10-2025:streamGenerateContent?alt=sse"
+      }
+     }
+    },
+    "id": "msg_0a57d0872001VK2a2uJcSc4wIX",
+    "sessionID": "ses_f5a82f7ddffe7aNrt02fwVWW4Z"
+   },
+   "parts": []
+  }
+ ]
+}
