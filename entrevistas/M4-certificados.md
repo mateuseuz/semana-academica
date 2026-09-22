@@ -17,8 +17,8 @@
 - [x] P8 — Formato e geração do código do certificado (CONCLUÍDO)
 - [x] P9 — GET /certificados - o que exatamente é retornado (CONCLUÍDO)
 - [x] P10 — NAO_INSCRITO (403) para rotas de certificado (CONCLUÍDO)
-- [x] P11 — Dados exibidos na verificação pública e tratamento do código (PENDENTE: consultar requisitos)
-- [x] P12 — Formato do nome do participante na verificação pública (PENDENTE: consultar requisitos)
+- [x] P11 — Dados exibidos na verificação pública e tratamento do código (CONCLUÍDO)
+- [x] P12 — Formato do nome do participante na verificação pública (CONCLUÍDO)
 
 ---
 
@@ -26,11 +26,11 @@
 
 ### P11 — Dados exibidos na verificação pública e tratamento do código
 - **Pergunta:** Na verificação pública de um certificado, quais dados devem ser exibidos e como o código informado deve ser tratado?
-- **Decisão:** PENDENTE — consultar requisitos.
+- **Decisão:** A verificação pública aceita o código em minúsculas e mostra somente nome abreviado do participante, atividade, carga horária e data de emissão. Fonte: RN-408.
 
 ### P12 — Formato do nome do participante na verificação pública
 - **Pergunta:** Como o nome do participante deve aparecer na verificação pública?
-- **Decisão:** PENDENTE — consultar requisitos.
+- **Decisão:** O nome abreviado usa o primeiro nome inteiro e as iniciais dos demais nomes com ponto. As partículas de, da, do, das e dos permanecem por extenso e em minúsculas. Fonte: RN-409.
 
 ### P1 — Regras de elegibilidade para certificado
 - **Pergunta:** Quais condições um participante deve satisfazer para poder emitir o certificado de uma atividade? É obrigatória presença em todos os encontros? É necessária uma carga horária mínima?
