@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { InscricoesTela } from './components/InscricoesTela';
+import { CertificadosTela } from './components/CertificadosTela';
 
 export default function ParticipanteApp() {
   const [encontroId, setEncontroId] = useState('enc_5e6f7a8b');
   const [usuarioId, setUsuarioId] = useState('p-carla');
-  const [view, setView] = useState('presenca'); // 'presenca' | 'inscricoes'
+  const [view, setView] = useState('presenca'); // 'presenca' | 'inscricoes' | 'certificados'
   const [codigo, setCodigo] = useState('');
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState(null);
@@ -185,8 +186,17 @@ export default function ParticipanteApp() {
         <div>
           <h1>Semana Acadêmica — M3 Participante</h1>
           <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
-            <button onClick={() => setView('presenca')} className={view === 'presenca' ? 'primary' : ''}>Presença</button>
-            <button onClick={() => setView('inscricoes')} className={view === 'inscricoes' ? 'primary' : ''}>Inscrições</button>
+           <button onClick={() => setView('presenca')} className={view === 'presenca' ? 'primary' : ''}>
+  Presença
+</button>
+
+<button onClick={() => setView('inscricoes')} className={view === 'inscricoes' ? 'primary' : ''}>
+  Inscrições
+</button>
+
+<button onClick={() => setView('certificados')} className={view === 'certificados' ? 'primary' : ''}>
+  Certificados
+</button>
           </div>
         </div>
         <div>
@@ -268,9 +278,11 @@ export default function ParticipanteApp() {
             </button>
           </form>
         </div>
-      ) : (
-        <InscricoesTela usuarioId={usuarioId} />
-      )}
+      ) : view === 'inscricoes' ? (
+  <InscricoesTela usuarioId={usuarioId} />
+) : (
+  <CertificadosTela usuarioId={usuarioId} />
+)}
 
       {mensagem && (
         <div className="alert alert-success">
